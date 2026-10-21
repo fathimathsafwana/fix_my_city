@@ -8,17 +8,39 @@ const Department = require("./models/Department");
 const User = require("./models/User");
 require("dotenv").config();
 const auth = require("./middleware/auth");
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/");
-  },
-  filename: function (req, file, cb) {
-    const uniqueName = Date.now() + "-" + file.originalname;
-    cb(null, uniqueName);
-  }
+const cloudinary = require("cloudinary").v2;
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "mlfq6her",
+  api_key: process.env.CLOUDINARY_API_KEY || "629429368993423",
+  api_secret: process.env.CLOUDINARY_API_SECRET || "O836ez1zTtBxlSgLrzyHxSEHdCg",
 });
 
-const upload = multer({ storage: storage });
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+
+// Helper function to stream buffer to Cloudinary
+const uploadToCloudinary = (fileBuffer, folder = "fixmycity") => {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: folder,
+        resource_type: "image",
+      },
+      (error, result) => {
+        if (error) {
+          console.error("Cloudinary upload error:", error);
+          return reject(error);
+        }
+        resolve(result.secure_url);
+      }
+    );
+    uploadStream.end(fileBuffer);
+  });
+};
 
 const app = express();
 app.use(cors());
@@ -156,13 +178,18 @@ app.post("/api/issues", upload.single("photo"), async (req, res) => {
     const { title, category, description, latitude, longitude, department } = req.body;
     const userId = req.headers["user-id"];
 
+    let photoUrl = null;
+    if (req.file) {
+      photoUrl = await uploadToCloudinary(req.file.buffer, "fixmycity/citizen_proofs");
+    }
+
     const issueData = {
       title,
       category,
       description,
       latitude: latitude ? Number(latitude) : 0,
       longitude: longitude ? Number(longitude) : 0,
-      photo: req.file ? `/uploads/${req.file.filename}` : null,
+      photo: photoUrl,
       status: "Submitted",
       department: department && mongoose.Types.ObjectId.isValid(department) ? department : null,
       user: userId && mongoose.Types.ObjectId.isValid(userId) ? userId : null,
@@ -441,8 +468,10 @@ app.put("/api/issues/:id/resolved-photo", upload.single("resolvedPhoto"), async 
       });
     }
 
+    const resolvedPhotoUrl = await uploadToCloudinary(req.file.buffer, "fixmycity/resolved_proofs");
+
     const updateData = {
-      resolvedPhoto: `/uploads/${req.file.filename}`,
+      resolvedPhoto: resolvedPhotoUrl,
     };
 
     if (req.body.status) {

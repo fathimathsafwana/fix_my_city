@@ -231,6 +231,14 @@ function TrackComplaint() {
         }
     };
 
+    const getPhotoUrl = (path) => {
+        if (!path) return "";
+        if (path.startsWith("http://") || path.startsWith("https://")) {
+            return path;
+        }
+        return `http://localhost:5000${path}`;
+    };
+
     return (
         <div className="track-page">
             <Navbar />
@@ -282,13 +290,13 @@ function TrackComplaint() {
                                     <div className="straight-col-photo">
                                         {issue.photo ? (
                                             <a
-                                                href={`http://localhost:5000${issue.photo}`}
+                                                href={getPhotoUrl(issue.photo)}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 title="Click to view full photo"
                                             >
                                                 <img
-                                                    src={`http://localhost:5000${issue.photo}`}
+                                                    src={getPhotoUrl(issue.photo)}
                                                     alt="Citizen reported problem"
                                                     className="straight-thumb-img"
                                                 />
@@ -413,7 +421,7 @@ function TrackComplaint() {
 
                                             {issue.resolvedPhoto && (
                                                 <a
-                                                    href={`http://localhost:5000${issue.resolvedPhoto}`}
+                                                    href={getPhotoUrl(issue.resolvedPhoto)}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="straight-btn-proof"

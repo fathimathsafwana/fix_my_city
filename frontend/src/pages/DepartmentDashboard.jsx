@@ -330,6 +330,14 @@ function DepartmentDashboard() {
     return `status-${(status || "submitted").toLowerCase().replace(/\s+/g, "-")}`;
   };
 
+  const getPhotoUrl = (path) => {
+    if (!path) return "";
+    if (path.startsWith("http://") || path.startsWith("https://")) {
+      return path;
+    }
+    return `http://localhost:5000${path}`;
+  };
+
   return (
     <div className="dept-sidebar-layout">
       {/* Mobile Drawer Backdrop */}
@@ -842,14 +850,14 @@ function DepartmentDashboard() {
                                   title="Citizen Photo - Click to expand"
                                   onClick={() =>
                                     setLightboxImage({
-                                      url: `http://localhost:5000${issue.photo}`,
+                                      url: getPhotoUrl(issue.photo),
                                       title: issue.title,
                                       type: "Citizen Photo",
                                     })
                                   }
                                 >
                                   <img
-                                    src={`http://localhost:5000${issue.photo}`}
+                                    src={getPhotoUrl(issue.photo)}
                                     alt="Citizen report"
                                   />
                                   <span className="td-thumb-badge">📷</span>
@@ -862,7 +870,7 @@ function DepartmentDashboard() {
                                   title="Completed Work Photo - Click to expand"
                                   onClick={() =>
                                     setLightboxImage({
-                                      url: `http://localhost:5000${issue.resolvedPhoto}`,
+                                      url: getPhotoUrl(issue.resolvedPhoto),
                                       title: issue.title,
                                       type: "Completed Work Proof",
                                     })
@@ -870,7 +878,7 @@ function DepartmentDashboard() {
                                   style={{ borderColor: "#10b981" }}
                                 >
                                   <img
-                                    src={`http://localhost:5000${issue.resolvedPhoto}`}
+                                    src={getPhotoUrl(issue.resolvedPhoto)}
                                     alt="Completed proof"
                                   />
                                   <span className="td-thumb-badge" style={{ color: "#10b981" }}>✅</span>
@@ -1066,14 +1074,14 @@ function DepartmentDashboard() {
                             title="Click to view full image"
                             onClick={() =>
                               setLightboxImage({
-                                url: `http://localhost:5000${issue.photo}`,
+                                url: getPhotoUrl(issue.photo),
                                 title: issue.title,
                                 type: "Citizen Photo",
                               })
                             }
                           >
                             <img
-                              src={`http://localhost:5000${issue.photo}`}
+                              src={getPhotoUrl(issue.photo)}
                               alt="Citizen reported issue"
                             />
                             <span className="photo-strip-tag">📷 Citizen Proof</span>
@@ -1087,7 +1095,7 @@ function DepartmentDashboard() {
                             title="Click to view full image"
                             onClick={() =>
                               setLightboxImage({
-                                url: `http://localhost:5000${issue.resolvedPhoto}`,
+                                url: getPhotoUrl(issue.resolvedPhoto),
                                 title: issue.title,
                                 type: "Completed Work Proof",
                               })
@@ -1095,7 +1103,7 @@ function DepartmentDashboard() {
                             style={{ borderColor: "#10b981" }}
                           >
                             <img
-                              src={`http://localhost:5000${issue.resolvedPhoto}`}
+                              src={getPhotoUrl(issue.resolvedPhoto)}
                               alt="Completed work proof"
                             />
                             <span className="photo-strip-tag resolved">✅ Resolved Proof</span>

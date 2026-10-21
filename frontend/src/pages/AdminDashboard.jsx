@@ -711,6 +711,14 @@ function AdminDashboard() {
     return `status-${(status || "submitted").toLowerCase().replace(/\s+/g, "-")}`;
   };
 
+  const getPhotoUrl = (path) => {
+    if (!path) return "";
+    if (path.startsWith("http://") || path.startsWith("https://")) {
+      return path;
+    }
+    return `http://localhost:5000${path}`;
+  };
+
   return (
     <div className="dept-sidebar-layout admin-sidebar-theme">
       {/* Mobile Drawer Backdrop */}
@@ -1337,14 +1345,14 @@ function AdminDashboard() {
                         style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", overflow: "hidden", width: "160px" }}
                         onClick={() =>
                           setLightboxImage({
-                            url: `http://localhost:5000${viewingIssue.photo}`,
+                            url: getPhotoUrl(viewingIssue.photo),
                             title: viewingIssue.title,
                             type: "Citizen Photo Proof",
                           })
                         }
                       >
                         <img
-                          src={`http://localhost:5000${viewingIssue.photo}`}
+                          src={getPhotoUrl(viewingIssue.photo)}
                           alt="Citizen Proof"
                           style={{ width: "100%", height: "110px", objectFit: "cover" }}
                         />
@@ -1358,14 +1366,14 @@ function AdminDashboard() {
                         style={{ cursor: "pointer", border: "1px solid #10b981", borderRadius: "8px", overflow: "hidden", width: "160px" }}
                         onClick={() =>
                           setLightboxImage({
-                            url: `http://localhost:5000${viewingIssue.resolvedPhoto}`,
+                            url: getPhotoUrl(viewingIssue.resolvedPhoto),
                             title: viewingIssue.title,
                             type: "Completed Work Proof",
                           })
                         }
                       >
                         <img
-                          src={`http://localhost:5000${viewingIssue.resolvedPhoto}`}
+                          src={getPhotoUrl(viewingIssue.resolvedPhoto)}
                           alt="Resolved Proof"
                           style={{ width: "100%", height: "110px", objectFit: "cover" }}
                         />
@@ -2227,14 +2235,14 @@ function AdminDashboard() {
                                 title="Click to view full image"
                                 onClick={() =>
                                   setLightboxImage({
-                                    url: `http://localhost:5000${issue.photo}`,
+                                    url: getPhotoUrl(issue.photo),
                                     title: issue.title,
                                     type: "Citizen Photo",
                                   })
                                 }
                               >
                                 <img
-                                  src={`http://localhost:5000${issue.photo}`}
+                                  src={getPhotoUrl(issue.photo)}
                                   alt="Citizen reported issue"
                                 />
                                 <span className="photo-strip-tag">📷 Citizen Proof</span>
@@ -2248,7 +2256,7 @@ function AdminDashboard() {
                                 title="Click to view full image"
                                 onClick={() =>
                                   setLightboxImage({
-                                    url: `http://localhost:5000${issue.resolvedPhoto}`,
+                                    url: getPhotoUrl(issue.resolvedPhoto),
                                     title: issue.title,
                                     type: "Completed Work Proof",
                                   })
@@ -2256,7 +2264,7 @@ function AdminDashboard() {
                                 style={{ borderColor: "#10b981" }}
                               >
                                 <img
-                                  src={`http://localhost:5000${issue.resolvedPhoto}`}
+                                  src={getPhotoUrl(issue.resolvedPhoto)}
                                   alt="Completed work proof"
                                 />
                                 <span className="photo-strip-tag resolved">✅ Resolved Proof</span>
