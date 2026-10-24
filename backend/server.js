@@ -8,7 +8,6 @@ const Department = require("./models/Department");
 const User = require("./models/User");
 const Feedback = require("./models/Feedback");
 require("dotenv").config();
-const auth = require("./middleware/auth");
 const cloudinary = require("cloudinary").v2;
 
 cloudinary.config({
@@ -74,7 +73,6 @@ app.use(
   })
 );
 app.use(express.json());
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 const PORT = process.env.PORT || 5000;
 
@@ -221,12 +219,12 @@ app.post("/api/issues", upload.single("photo"), async (req, res) => {
 
     const issueData = {
       title,
-      category,
+      category: category || "General",
       description,
       latitude: latitude ? Number(latitude) : 0,
       longitude: longitude ? Number(longitude) : 0,
       photo: photoUrl,
-      status: "Submitted",
+      status: "Pending",
       department: department && mongoose.Types.ObjectId.isValid(department) ? department : null,
       user: userId && mongoose.Types.ObjectId.isValid(userId) ? userId : null,
     };
@@ -297,18 +295,22 @@ app.put("/api/issues/:id/status", async (req, res) => {
       });
     }
 
-    if (status === "Resolved" && !existing.resolvedPhoto) {
+    if (existing.status === "Resolved") {
       return res.status(400).json({
-        message: "Photo proof of completed work is required before marking a complaint as Resolved.",
+        message: "Resolved complaints are closed and cannot be modified.",
       });
     }
 
     existing.status = status;
-    const issue = await existing.save();
+    await existing.save();
+
+    const populated = await Issue.findById(existing._id)
+      .populate("user", "name email")
+      .populate("department");
 
     res.status(200).json({
       message: "Complaint status updated successfully!",
-      issue: issue,
+      issue: populated,
     });
   } catch (error) {
     console.error("Error updating complaint status:", error);
@@ -326,30 +328,81 @@ app.put("/api/issues/:id", async (req, res) => {
     const { id } = req.params;
     const { title, category, description, status, department, priority } = req.body;
 
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid complaint ID format." });
+    }
+
     const issue = await Issue.findById(id);
     if (!issue) {
       return res.status(404).json({ message: "Complaint not found." });
     }
 
-    if (title !== undefined) issue.title = title;
-    if (category !== undefined) issue.category = category;
-    if (description !== undefined) issue.description = description;
-    if (status !== undefined) issue.status = status;
-    if (department !== undefined) issue.department = department || null;
-    if (priority !== undefined) issue.priority = priority;
-
-    // Keep status and department assignment consistent
-    if (issue.department && issue.status === "Submitted") {
-      issue.status = "Assigned";
-    } else if (!issue.department && issue.status === "Assigned") {
-      issue.status = "Submitted";
+    if (issue.status === "Resolved") {
+      return res.status(400).json({
+        message: "Resolved complaints are closed and cannot be edited.",
+      });
     }
 
-    const updated = await issue.save();
-    const populated = await Issue.findById(updated._id).populate("department");
+    // Check if requester is an administrator
+    const userId = req.headers["user-id"];
+    let isAdmin = false;
+    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+      const requester = await User.findById(userId);
+      if (requester && requester.role === "admin") {
+        isAdmin = true;
+      }
+    }
+
+    // Block admin from modifying complaint title or description
+    if (isAdmin) {
+      const isTitleModified =
+        title !== undefined &&
+        typeof title === "string" &&
+        title.trim() !== issue.title;
+      const isDescriptionModified =
+        description !== undefined &&
+        typeof description === "string" &&
+        description.trim() !== (issue.description || "").trim();
+
+      if (isTitleModified || isDescriptionModified) {
+        return res.status(403).json({
+          message: "Administrators cannot edit citizen complaint title or description.",
+        });
+      }
+    }
+
+    const updateFields = {};
+    if (!isAdmin) {
+      if (title !== undefined && typeof title === "string" && title.trim()) {
+        updateFields.title = title.trim();
+      }
+      if (description !== undefined) updateFields.description = description;
+    }
+    if (category !== undefined) updateFields.category = category;
+    if (status !== undefined) updateFields.status = status;
+    if (department !== undefined) {
+      const rawDept =
+        typeof department === "object" && department !== null
+          ? (department._id || department.id)
+          : department;
+      updateFields.department =
+        rawDept && mongoose.Types.ObjectId.isValid(rawDept)
+          ? rawDept.toString()
+          : null;
+    }
+    if (priority !== undefined) updateFields.priority = priority;
+
+    const updated = await Issue.findByIdAndUpdate(
+      id,
+      { $set: updateFields },
+      { new: true, runValidators: false }
+    )
+      .populate("user", "name email")
+      .populate("department");
+
     res.status(200).json({
       message: "Complaint details updated successfully!",
-      issue: populated,
+      issue: updated,
     });
   } catch (error) {
     console.error("Error updating complaint:", error);
@@ -364,10 +417,18 @@ app.put("/api/issues/:id", async (req, res) => {
 app.delete("/api/issues/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const deleted = await Issue.findByIdAndDelete(id);
-    if (!deleted) {
+    const existing = await Issue.findById(id);
+    if (!existing) {
       return res.status(404).json({ message: "Complaint not found." });
     }
+
+    if (existing.status === "Resolved") {
+      return res.status(400).json({
+        message: "Resolved complaints cannot be deleted.",
+      });
+    }
+
+    await Issue.findByIdAndDelete(id);
     res.status(200).json({
       message: "Complaint deleted successfully!",
       id,
@@ -566,59 +627,6 @@ app.put("/api/issues/:id/resolved-photo", upload.single("resolvedPhoto"), async 
   }
 });
 
-// Submit citizen feedback and rating for a resolved complaint
-app.post("/api/issues/:id/feedback", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { rating, comment } = req.body;
-    const userId = req.headers["user-id"];
-
-    if (!rating || Number(rating) < 1 || Number(rating) > 5) {
-      return res.status(400).json({
-        message: "Please provide a valid rating between 1 and 5 stars.",
-      });
-    }
-
-    const issue = await Issue.findById(id);
-    if (!issue) {
-      return res.status(404).json({ message: "Complaint not found." });
-    }
-
-    // Check ownership if user-id provided
-    if (userId && issue.user && String(issue.user) !== String(userId)) {
-      return res.status(403).json({
-        message: "You can only submit feedback for your own complaints.",
-      });
-    }
-
-    if (issue.status !== "Resolved") {
-      return res.status(400).json({
-        message: "Feedback can only be submitted once the complaint is marked as Resolved.",
-      });
-    }
-
-    issue.feedback = {
-      rating: Math.round(Number(rating)),
-      comment: comment ? String(comment).trim() : "",
-      submittedAt: new Date(),
-    };
-
-    const updatedIssue = await issue.save();
-    console.log(`Feedback submitted for issue ${id}: rating=${rating}`);
-
-    res.status(200).json({
-      message: "Thank you! Your feedback and rating have been recorded.",
-      issue: updatedIssue,
-    });
-  } catch (error) {
-    console.error("Error submitting feedback:", error);
-    res.status(500).json({
-      message: "Failed to submit feedback.",
-      error: error.message,
-    });
-  }
-});
-
 // Citizen General & Issue Feedback Endpoint
 app.post("/api/feedback", async (req, res) => {
   try {
@@ -725,44 +733,6 @@ app.delete("/api/feedback/:id", async (req, res) => {
   }
 });
 
-app.put("/api/issues/:id/department", async (req, res) => {
-  try {
-    const { department } = req.body;
-
-    const existing = await Issue.findById(req.params.id);
-    if (!existing) {
-      return res.status(404).json({
-        message: "Complaint not found.",
-      });
-    }
-
-    const updateData = { department: department || null };
-    // Automatically transition status to "Assigned" if currently "Submitted" or "Verified"
-    if (department && (existing.status === "Submitted" || existing.status === "Verified")) {
-      updateData.status = "Assigned";
-    }
-
-    const issue = await Issue.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true }
-    );
-
-    console.log(`Assigned issue ${req.params.id} to department: ${department}, status: ${issue.status}`);
-
-    res.status(200).json({
-      message: "Department assigned successfully!",
-      issue: issue,
-    });
-  } catch (error) {
-    console.error("Error assigning department:", error);
-
-    res.status(500).json({
-      message: "Failed to assign department.",
-      error: error.message,
-    });
-  }
-});
 app.get("/api/location", async (req, res) => {
   try {
     const { latitude, longitude } = req.query;

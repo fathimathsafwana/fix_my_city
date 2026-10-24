@@ -32,7 +32,7 @@ async function seed() {
     let admin = await User.findOne({ email: adminEmail });
     if (!admin) {
       admin = await User.create({
-        name: "City Administrator",
+        name: "Admin",
         email: adminEmail,
         password: "Admin@123",
         role: "admin",
@@ -40,7 +40,7 @@ async function seed() {
       });
       console.log(`Created Admin user: ${adminEmail}`);
     } else {
-      admin.name = "City Administrator";
+      admin.name = "Admin";
       admin.role = "admin";
       admin.password = "Admin@123";
       await admin.save();
@@ -80,7 +80,7 @@ async function seed() {
 
     console.log("\n==========================================");
     console.log("Seeding complete! (Admin & Department only)");
-    console.log("Admin:      admin@gmail.com / Admin@123");
+    console.log("Admin: admin@gmail.com / Admin@123");
     console.log("Department: department@gmail.com / Dept@123");
     console.log("Note: Citizens register their own accounts at /register");
     console.log("==========================================\n");

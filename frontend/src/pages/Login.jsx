@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { API_BASE_URL } from "../config";
 
@@ -42,7 +42,7 @@ function Login() {
       if (data.user.role === "admin") {
         navigate("/admin");
       } else if (data.user.role === "department") {
-        navigate("/");
+        navigate("/department");
       } else {
         navigate("/");
       }
@@ -128,7 +128,7 @@ function Login() {
 
         <p className="register-text">
           Don't have an account?{" "}
-          <a href="/register">Register</a>
+          <Link to="/register">Register</Link>
         </p>
 
       </div>

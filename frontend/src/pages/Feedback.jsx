@@ -1,61 +1,26 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { useToast } from "../context/useToast";
 import { API_BASE_URL } from "../config";
+import { getAuthHeaders } from "../utils/auth";
 
 function Feedback() {
   const { showToast } = useToast();
-  const [issues, setIssues] = useState([]);
-  const [selectedIssueId, setSelectedIssueId] = useState("");
+  const [searchParams] = useSearchParams();
+  const queryIssueId = searchParams.get("issueId") || "";
+
+  const [selectedIssueId, setSelectedIssueId] = useState(queryIssueId);
   const [rating, setRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
-  const [category, setCategory] = useState("Resolution Quality");
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [feedbackHistory, setFeedbackHistory] = useState([]);
-  const [loadingHistory, setLoadingHistory] = useState(true);
 
-  const getAuthHeaders = () => {
-    try {
-      const user = JSON.parse(localStorage.getItem("user") || "null");
-      if (user) {
-        const uid = user.id || user._id;
-        if (uid) return { "user-id": uid };
-      }
-    } catch {}
-    return {};
-  };
-
-  // Fetch user complaints for the dropdown and existing feedback history
   useEffect(() => {
-    const headers = getAuthHeaders();
-
-    // 1. Fetch user issues
-    fetch(`${API_BASE_URL}/api/issues`, { headers })
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => {
-        setIssues(Array.isArray(data) ? data : []);
-      })
-      .catch((err) => console.error("Error loading issues for feedback:", err));
-
-    // 2. Fetch feedback history
-    fetchFeedbackHistory();
-  }, []);
-
-  const fetchFeedbackHistory = () => {
-    const headers = getAuthHeaders();
-    setLoadingHistory(true);
-    fetch(`${API_BASE_URL}/api/feedback`, { headers })
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => {
-        setFeedbackHistory(Array.isArray(data) ? data : []);
-        setLoadingHistory(false);
-      })
-      .catch((err) => {
-        console.error("Error loading feedback history:", err);
-        setLoadingHistory(false);
-      });
-  };
+    if (queryIssueId) {
+      setSelectedIssueId(queryIssueId);
+    }
+  }, [queryIssueId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -66,7 +31,7 @@ function Feedback() {
     }
 
     if (!comment.trim()) {
-      showToast("Please write a short comment or suggestion.", "warning");
+      showToast("Please write your comments and suggestions.", "warning");
       return;
     }
 
@@ -83,7 +48,7 @@ function Feedback() {
         body: JSON.stringify({
           issueId: selectedIssueId || null,
           rating,
-          category,
+          category: "Resolution Quality",
           comment: comment.trim(),
         }),
       });
@@ -96,8 +61,6 @@ function Feedback() {
       showToast("Thank you! Your feedback has been recorded.", "success");
       setComment("");
       setRating(5);
-      setSelectedIssueId("");
-      fetchFeedbackHistory();
     } catch (err) {
       console.error(err);
       showToast(err.message || "Cannot submit feedback.", "error");
@@ -130,40 +93,21 @@ function Feedback() {
       <div className="feedback-container">
         {/* Page Header */}
         <div className="feedback-header-card">
-          <h1>⭐ Citizen Feedback & Rating</h1>
+          <h1>Feedback & Rating</h1>
           <p className="feedback-lead">
             Help us improve municipal services. Rate completed works, service quality, or provide suggestions to city authorities.
           </p>
         </div>
 
         <div className="feedback-layout">
-          {/* Left Column: Feedback Submission Form */}
+          {/* Feedback Submission Form */}
           <div className="feedback-form-card">
             <h2>📝 Submit Your Feedback</h2>
 
             <form onSubmit={handleSubmit}>
-              {/* Select Complaint or General */}
+              {/* Ratings */}
               <div className="form-group">
-                <label>Related Complaint / Service</label>
-                <select
-                  value={selectedIssueId}
-                  onChange={(e) => setSelectedIssueId(e.target.value)}
-                >
-                  <option value="">🌐 General Municipal / City Portal Feedback</option>
-                  {issues.map((issue) => (
-                    <option key={issue._id} value={issue._id}>
-                      [{issue.status}] {issue.title} ({issue.category})
-                    </option>
-                  ))}
-                </select>
-                <small className="form-hint">
-                  Select a specific complaint you reported or choose general service feedback.
-                </small>
-              </div>
-
-              {/* Star Rating Picker */}
-              <div className="form-group">
-                <label>Your Rating</label>
+                <label>Ratings</label>
                 <div className="feedback-star-picker">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button
@@ -186,27 +130,12 @@ function Feedback() {
                 </div>
               </div>
 
-              {/* Feedback Category */}
+              {/* Comments and Suggestions */}
               <div className="form-group">
-                <label>Feedback Category</label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                >
-                  <option value="Resolution Quality">Resolution Quality</option>
-                  <option value="Speed of Resolution">Speed of Resolution</option>
-                  <option value="Field Worker Behavior">Field Worker Behavior</option>
-                  <option value="Portal Usability">Portal & App Usability</option>
-                  <option value="General Civic Suggestion">General Civic Suggestion</option>
-                </select>
-              </div>
-
-              {/* Comments & Details */}
-              <div className="form-group">
-                <label>Comments & Suggestions</label>
+                <label>Comments and Suggestions</label>
                 <textarea
                   rows={4}
-                  placeholder="Share details about your experience, resolution quality, or ideas to improve..."
+                  placeholder="Share your comments, experience, or suggestions to improve..."
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   required
@@ -223,50 +152,6 @@ function Feedback() {
               </button>
             </form>
           </div>
-
-          {/* Right Column: Feedback History */}
-          <div className="feedback-history-card">
-            <h2>📋 Your Feedback History</h2>
-            <p className="history-subtitle">
-              Past ratings and reviews submitted from your account.
-            </p>
-
-            {loadingHistory && <p className="history-loading">Loading your feedback history...</p>}
-
-            {!loadingHistory && feedbackHistory.length === 0 && (
-              <div className="history-empty">
-                <span className="empty-icon">💬</span>
-                <p>No feedback submitted yet.</p>
-                <small>Use the form to rate your first resolved issue or municipal service.</small>
-              </div>
-            )}
-
-            {!loadingHistory && feedbackHistory.length > 0 && (
-              <div className="feedback-history-list">
-                {feedbackHistory.map((item) => (
-                  <div className="history-item-card" key={item._id}>
-                    <div className="history-item-top">
-                      <div className="history-stars">
-                        {"★".repeat(item.rating)}{"☆".repeat(5 - item.rating)}
-                        <span className="history-rating-score">({item.rating}/5)</span>
-                      </div>
-                      <span className="history-category-pill">{item.category}</span>
-                    </div>
-
-                    <div className="history-issue-ref">
-                      <strong>Target:</strong> {item.issueTitle || "General Service"}
-                    </div>
-
-                    <p className="history-comment-quote">"{item.comment}"</p>
-
-                    <div className="history-date">
-                      📅 {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "Recently"}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>
@@ -274,4 +159,3 @@ function Feedback() {
 }
 
 export default Feedback;
-

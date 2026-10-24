@@ -1,24 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
+import Pagination from "../components/Pagination";
 import { useToast } from "../context/useToast";
 import { API_BASE_URL } from "../config";
+import { getAuthHeaders, getCurrentUser } from "../utils/auth";
+import { getCategoryIcon } from "../utils/constants";
 
 const TRACKING_STEPS = [
-    { key: "Submitted", label: "Submitted", icon: "📝", desc: "Logged in portal" },
+    { key: "Pending", label: "Pending", icon: "⏳", desc: "Logged in portal" },
     { key: "Verified", label: "Verified", icon: "🔍", desc: "Admin verified" },
-    { key: "Assigned", label: "Assigned", icon: "🏢", desc: "Sent to dept" },
     { key: "In Progress", label: "In Progress", icon: "🔧", desc: "Work underway" },
     { key: "Resolved", label: "Resolved", icon: "✅", desc: "Work completed" },
-];
-
-const CATEGORIES = [
-    "Electricity & Street Lighting",
-    "Sanitation & Waste Management",
-    "Roads & Infrastructure",
-    "Water Supply & Drainage",
-    "Public Safety",
-    "General Civic Grievance",
 ];
 
 function TrackComplaint() {
@@ -43,20 +36,19 @@ function TrackComplaint() {
     });
     const [savingEdit, setSavingEdit] = useState(false);
 
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(5);
+
+    const totalPages = Math.ceil(issues.length / pageSize) || 1;
+    const paginatedIssues = useMemo(() => {
+        const startIndex = (currentPage - 1) * pageSize;
+        return issues.slice(startIndex, startIndex + pageSize);
+    }, [issues, currentPage, pageSize]);
+
     useEffect(() => {
-        let headers = {};
-        let currentUser = null;
-        try {
-            currentUser = JSON.parse(localStorage.getItem("user") || "null");
-            if (currentUser) {
-                const uid = currentUser.id || currentUser._id;
-                if (uid) {
-                    headers["user-id"] = uid;
-                }
-            }
-        } catch {
-            // ignore
-        }
+        const headers = getAuthHeaders();
+        const currentUser = getCurrentUser();
 
         // Fetch issues and departments in parallel
         Promise.all([
@@ -134,6 +126,7 @@ function TrackComplaint() {
     };
 
     const handleSearch = () => {
+        setCurrentPage(1);
         const query = searchId.trim().toLowerCase();
         if (!query) {
             setIssues(allIssues);
@@ -159,30 +152,20 @@ function TrackComplaint() {
     };
 
     const handleClear = () => {
+        setCurrentPage(1);
         setSearchId("");
         setIssues(allIssues);
         setError("");
     };
 
-    const getCategoryIcon = (category) => {
-        if (!category) return "⚠️";
-        const lower = category.toLowerCase();
-        if (lower.includes("road") || lower.includes("pothole")) return "🚧";
-        if (lower.includes("light") || lower.includes("electric")) return "💡";
-        if (lower.includes("garbage") || lower.includes("waste") || lower.includes("sanitat")) return "🗑️";
-        if (lower.includes("water") || lower.includes("supply")) return "🚰";
-        if (lower.includes("drainage") || lower.includes("sewage")) return "🌊";
-        if (lower.includes("safety") || lower.includes("public")) return "🚨";
-        return "📍";
-    };
-
     const getStepIndex = (status) => {
         const map = {
+            Pending: 0,
             Submitted: 0,
+            Assigned: 0,
             Verified: 1,
-            Assigned: 2,
-            "In Progress": 3,
-            Resolved: 4,
+            "In Progress": 2,
+            Resolved: 3,
         };
         return map[status] ?? 0;
     };
@@ -194,6 +177,10 @@ function TrackComplaint() {
     };
 
     const startEditing = (issue) => {
+        if (issue.status === "Resolved") {
+            showToast("Resolved complaints cannot be edited.", "warning");
+            return;
+        }
         setEditingIssueId(issue._id);
         setEditFormData({
             title: issue.title || "",
@@ -208,6 +195,13 @@ function TrackComplaint() {
     };
 
     const saveComplaintCorrection = async (issueId) => {
+        const target = issues.find((i) => i._id === issueId);
+        if (target && target.status === "Resolved") {
+            showToast("Resolved complaints cannot be edited.", "warning");
+            setEditingIssueId(null);
+            return;
+        }
+
         if (!editFormData.title.trim() || !editFormData.description.trim()) {
             showToast("Title and Description cannot be empty.", "warning");
             return;
@@ -305,8 +299,9 @@ function TrackComplaint() {
             )}
 
             {!loading && issues.length > 0 && (
-                <div className="complaints-list">
-                    {issues.map((issue) => {
+                <>
+                    <div className="complaints-list">
+                        {paginatedIssues.map((issue) => {
                         const isEditing = editingIssueId === issue._id;
                         const currentStep = getStepIndex(issue.status);
 
@@ -389,55 +384,53 @@ function TrackComplaint() {
                                     <div className="straight-col-stepper">
                                         <div className="straight-stepper-header">
                                             <span>Live Progress</span>
-                                            <span style={{ color: "var(--neon)" }}>Stage: {issue.status}</span>
+                                            <span style={{ color: issue.status === "Rejected" ? "#ef4444" : "var(--neon)" }}>
+                                                Stage: {!issue.status || issue.status === "Submitted" || issue.status === "Assigned" ? "Pending" : issue.status}
+                                            </span>
                                         </div>
 
-                                        <div className="straight-stepper-track">
-                                            <div className="straight-stepper-bar-bg">
-                                                <div
-                                                    className="straight-stepper-bar-fill"
-                                                    style={{
-                                                        width: `${(currentStep / (TRACKING_STEPS.length - 1)) * 100}%`,
-                                                    }}
-                                                ></div>
+                                        {issue.status === "Rejected" ? (
+                                            <div style={{ color: "#ef4444", fontSize: "13px", padding: "10px 14px", background: "rgba(239, 68, 68, 0.1)", borderRadius: "8px", border: "1px solid rgba(239, 68, 68, 0.3)", display: "flex", alignItems: "center", gap: "8px" }}>
+                                                <span>❌</span> <strong>Grievance Rejected:</strong> This complaint was reviewed and closed as rejected.
                                             </div>
-
-                                            {TRACKING_STEPS.map((step, idx) => {
-                                                const isCompleted = idx < currentStep;
-                                                const isActive = idx === currentStep;
-
-                                                return (
+                                        ) : (
+                                            <div className="straight-stepper-track">
+                                                <div className="straight-stepper-bar-bg">
                                                     <div
-                                                        key={step.key}
-                                                        className={`straight-step-node ${
-                                                            isCompleted ? "completed" : ""
-                                                        } ${isActive ? "active" : ""}`}
-                                                        title={`${step.label}: ${step.desc}`}
-                                                    >
-                                                        <div className="straight-step-dot">
-                                                            {isCompleted ? "✓" : step.icon}
+                                                        className="straight-stepper-bar-fill"
+                                                        style={{
+                                                            width: `${(currentStep / (TRACKING_STEPS.length - 1)) * 100}%`,
+                                                        }}
+                                                    ></div>
+                                                </div>
+
+                                                {TRACKING_STEPS.map((step, idx) => {
+                                                    const isCompleted = idx < currentStep;
+                                                    const isActive = idx === currentStep;
+
+                                                    return (
+                                                        <div
+                                                            key={step.key}
+                                                            className={`straight-step-node ${
+                                                                isCompleted ? "completed" : ""
+                                                            } ${isActive ? "active" : ""}`}
+                                                            title={`${step.label}: ${step.desc}`}
+                                                        >
+                                                            <div className="straight-step-dot">
+                                                                {isCompleted ? "✓" : step.icon}
+                                                            </div>
+                                                            <span className="straight-step-text">{step.label}</span>
                                                         </div>
-                                                        <span className="straight-step-text">{step.label}</span>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
 
-                                    {/* Col 4: Status Badge & Actions (Far Right) */}
+                                    {/* Col 4: Actions (Far Right) */}
                                     <div className="straight-col-actions">
-                                        <span
-                                            className={`status-badge status-${(
-                                                issue.status || "submitted"
-                                            )
-                                                .toLowerCase()
-                                                .replace(/\s+/g, "-")}`}
-                                        >
-                                            {issue.status}
-                                        </span>
-
                                         <div className="straight-actions-row">
-                                            {issue.status !== "Resolved" && (
+                                            {issue.status !== "Resolved" ? (
                                                 <button
                                                     className="straight-btn-edit"
                                                     onClick={() => (isEditing ? cancelEditing() : startEditing(issue))}
@@ -445,6 +438,14 @@ function TrackComplaint() {
                                                 >
                                                     {isEditing ? "✕ Close" : "✏️ Edit"}
                                                 </button>
+                                            ) : (
+                                                <Link
+                                                    to={`/feedback?issueId=${issue._id}`}
+                                                    className={`straight-btn-rate ${issue.feedback?.rating ? "has-rated" : ""}`}
+                                                    title="Submit or update feedback for this resolved complaint"
+                                                >
+                                                    ⭐ Feedback
+                                                </Link>
                                             )}
 
                                             {issue.resolvedPhoto && (
@@ -479,26 +480,6 @@ function TrackComplaint() {
                                                 }
                                                 placeholder="Example: Broken street light"
                                             />
-                                        </div>
-
-                                        <div className="edit-form-field">
-                                            <label>Category</label>
-                                            <select
-                                                value={editFormData.category}
-                                                onChange={(e) =>
-                                                    setEditFormData((prev) => ({
-                                                        ...prev,
-                                                        category: e.target.value,
-                                                    }))
-                                                }
-                                            >
-                                                <option value="">Select Category</option>
-                                                {CATEGORIES.map((cat) => (
-                                                    <option key={cat} value={cat}>
-                                                        {cat}
-                                                    </option>
-                                                ))}
-                                            </select>
                                         </div>
 
                                         <div className="edit-form-field">
@@ -540,6 +521,17 @@ function TrackComplaint() {
                         );
                     })}
                 </div>
+
+                <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalItems={issues.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={setPageSize}
+                    pageSizeOptions={[5, 10, 20]}
+                />
+            </>
             )}
         </div>
     );

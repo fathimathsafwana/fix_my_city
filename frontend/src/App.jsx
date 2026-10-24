@@ -11,18 +11,14 @@ import DepartmentDashboard from "./pages/DepartmentDashboard";
 import CitizenProfile from "./pages/CitizenProfile";
 import Feedback from "./pages/Feedback";
 import { useState, useEffect } from "react";
+import { getCurrentUser } from "./utils/auth";
 
 function Home() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    try {
-      const savedUser = localStorage.getItem("user");
-      setUser(savedUser ? JSON.parse(savedUser) : null);
-    } catch {
-      setUser(null);
-    }
+    setUser(getCurrentUser());
   }, []);
 
   return (
@@ -143,7 +139,7 @@ function Home() {
             <div className="step-number">3</div>
             <h3>3. Admin Assigns</h3>
             <p>
-              City administrators verify the complaint and dispatch it to the responsible municipal department.
+              Admin verify the complaint and dispatch it to the responsible municipal department.
             </p>
           </div>
 

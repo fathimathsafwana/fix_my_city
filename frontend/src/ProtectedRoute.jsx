@@ -1,13 +1,8 @@
 import { Navigate } from "react-router-dom";
+import { getCurrentUser } from "./utils/auth";
 
 function ProtectedRoute({ allowedRole, allowedRoles, children }) {
-  let user = null;
-  try {
-    const raw = localStorage.getItem("user");
-    user = raw ? JSON.parse(raw) : null;
-  } catch {
-    user = null;
-  }
+  const user = getCurrentUser();
 
   // Not logged in -> redirect to login page immediately
   if (!user) {

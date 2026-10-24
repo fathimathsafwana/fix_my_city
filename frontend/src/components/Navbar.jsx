@@ -1,5 +1,6 @@
 import { NavLink, Link, useNavigate, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { getCurrentUser } from "../utils/auth";
 
 function Navbar() {
   const location = useLocation();
@@ -8,17 +9,7 @@ function Navbar() {
 
   // Sync user state on route changes or storage updates
   useEffect(() => {
-    try {
-      const savedUser = localStorage.getItem("user");
-      let parsed = savedUser ? JSON.parse(savedUser) : null;
-      if (parsed && parsed.name === "Electrical Department Officer") {
-        parsed.name = "Department Officer";
-        localStorage.setItem("user", JSON.stringify(parsed));
-      }
-      setUser(parsed);
-    } catch {
-      setUser(null);
-    }
+    setUser(getCurrentUser());
   }, [location]);
 
   const handleLogout = () => {
@@ -93,15 +84,6 @@ function Navbar() {
                 >
                   Track Complaints
                 </NavLink>
-
-                <NavLink
-                  to="/feedback"
-                  className={({ isActive }) =>
-                    isActive ? "nav-link active" : "nav-link"
-                  }
-                >
-                  Feedback
-                </NavLink>
               </>
             )}
 
@@ -156,7 +138,7 @@ function Navbar() {
               title="Click to view My Profile"
             >
               {user.role === "admin"
-                ? `🛡️ Admin: ${user.name || "Administrator"}`
+                ? `🛡️${user.name || "Admin"}`
                 : user.role === "department"
                 ? `🏢 ${user.name || "Department Officer"}`
                 : `👤 ${user.name || "Citizen"}`}

@@ -1,16 +1,51 @@
 import { useEffect, useState, useMemo } from "react";
-import { createPortal } from "react-dom";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useToast } from "../context/useToast";
-import Pagination from "../components/Pagination";
+import DeleteConfirmationModal from "../components/DeleteConfirmationModal";
 import { API_BASE_URL } from "../config";
+import { getAuthHeaders, getCurrentUser } from "../utils/auth";
+
+// Modular Admin Components
+import AdminSidebar from "../components/admin/AdminSidebar";
+import AdminHeader from "../components/admin/AdminHeader";
+import ComplaintsTab from "../components/admin/ComplaintsTab";
+import UsersTab from "../components/admin/UsersTab";
+import DepartmentsTab from "../components/admin/DepartmentsTab";
+import FeedbacksTab from "../components/admin/FeedbacksTab";
+
+// Admin Modals
+import LightboxModal from "../components/admin/modals/LightboxModal";
+import ViewUserModal from "../components/admin/modals/ViewUserModal";
+import ViewIssueModal from "../components/admin/modals/ViewIssueModal";
+import EditIssueModal from "../components/admin/modals/EditIssueModal";
+import {
+  CreateDeptModal,
+  ViewDeptModal,
+  EditDeptModal,
+} from "../components/admin/modals/DepartmentModals";
 
 function AdminDashboard() {
   const { showToast } = useToast();
   const navigate = useNavigate();
 
-  // Primary Tab: 'complaints' | 'users'
+  // Primary Tab: 'complaints' | 'users' | 'departments' | 'feedbacks'
   const [activeTab, setActiveTab] = useState("complaints");
+
+  // Reusable Delete Confirmation State
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    title: "",
+    itemName: "",
+    itemType: "",
+    message: "",
+    confirmText: "Delete",
+    isDeleting: false,
+    onConfirm: null,
+  });
+
+  const closeDeleteModal = () => {
+    setDeleteModal((prev) => ({ ...prev, isOpen: false, isDeleting: false }));
+  };
 
   // Complaints States
   const [issues, setIssues] = useState([]);
@@ -19,9 +54,8 @@ function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [departmentFilter, setDepartmentFilter] = useState("All");
-  const [updatingId, setUpdatingId] = useState(null);
 
-  // View, Edit & Delete Complaint Action States
+  // View, Edit & Inspect Issue Action States
   const [viewingIssue, setViewingIssue] = useState(null);
   const [editingIssue, setEditingIssue] = useState(null);
   const [editFormData, setEditFormData] = useState({
@@ -62,31 +96,21 @@ function AdminDashboard() {
   const [savingDept, setSavingDept] = useState(false);
   const [showDeptPassword, setShowDeptPassword] = useState(false);
   const [showEditDeptPassword, setShowEditDeptPassword] = useState(false);
-  const [showUserPassword, setShowUserPassword] = useState(false);
 
   // Users States
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [viewingUser, setViewingUser] = useState(null);
-
-  // Users Pagination
   const [usersPage, setUsersPage] = useState(1);
   const [usersPageSize, setUsersPageSize] = useState(5);
-  const [newUserData, setNewUserData] = useState({
-    name: "",
-    email: "",
-    password: "",
-    role: "user",
-  });
 
-  // Feedbacks & Reviews States
+  // Feedbacks States
   const [feedbacks, setFeedbacks] = useState([]);
   const [loadingFeedbacks, setLoadingFeedbacks] = useState(false);
-  const [feedbackRatingFilter, setFeedbackRatingFilter] = useState("All");
   const [feedbackSearchQuery, setFeedbackSearchQuery] = useState("");
   const [feedbackPage, setFeedbackPage] = useState(1);
-  const [feedbackPageSize, setFeedbackPageSize] = useState(6);
+  const [feedbackPageSize, setFeedbackPageSize] = useState(5);
 
   // View Mode: 'table' vs 'cards'
   const [viewMode, setViewMode] = useState("table");
@@ -99,13 +123,7 @@ function AdminDashboard() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   // Current logged in user from localStorage
-  const [currentUser, setCurrentUser] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("user") || "null");
-    } catch {
-      return null;
-    }
-  });
+  const currentUser = useMemo(() => getCurrentUser(), []);
 
   const handleLogout = () => {
     localStorage.removeItem("user");
@@ -113,18 +131,62 @@ function AdminDashboard() {
     navigate("/login");
   };
 
-  const getAuthHeaders = () => {
-    try {
-      const user = JSON.parse(localStorage.getItem("user") || "null");
-      if (user && (user.id || user._id)) {
-        return { "user-id": user.id || user._id };
-      }
-    } catch {
-      // ignore
-    }
-    return {};
-  };
+  // Determine if any modal is currently open in Admin Dashboard
+  const isAnyModalOpen = Boolean(
+    lightboxImage ||
+      viewingUser ||
+      isCreateDeptModalOpen ||
+      viewingDept ||
+      editingDept ||
+      viewingIssue ||
+      editingIssue ||
+      deleteModal.isOpen
+  );
 
+  // Prevent background scrolling and handle Escape key when any modal is open
+  useEffect(() => {
+    if (isAnyModalOpen) {
+      document.body.classList.add("modal-open");
+      document.documentElement.classList.add("modal-open");
+
+      const handleKeyDown = (e) => {
+        if (e.key === "Escape") {
+          if (lightboxImage) {
+            setLightboxImage(null);
+            return;
+          }
+          if (deleteModal.isOpen && !deleteModal.isDeleting) {
+            closeDeleteModal();
+            return;
+          }
+          setViewingUser(null);
+          setIsCreateDeptModalOpen(false);
+          setViewingDept(null);
+          setEditingDept(null);
+          setViewingIssue(null);
+          setEditingIssue(null);
+        }
+      };
+
+      window.addEventListener("keydown", handleKeyDown);
+
+      return () => {
+        document.body.classList.remove("modal-open");
+        document.documentElement.classList.remove("modal-open");
+        window.removeEventListener("keydown", handleKeyDown);
+      };
+    } else {
+      document.body.classList.remove("modal-open");
+      document.documentElement.classList.remove("modal-open");
+    }
+  }, [
+    isAnyModalOpen,
+    lightboxImage,
+    deleteModal.isOpen,
+    deleteModal.isDeleting,
+  ]);
+
+  // Data Fetching Functions
   const fetchIssues = () => {
     fetch(`${API_BASE_URL}/api/issues`, {
       headers: getAuthHeaders(),
@@ -158,13 +220,13 @@ function AdminDashboard() {
     fetch(`${API_BASE_URL}/api/users`, {
       headers: getAuthHeaders(),
     })
-      .then((res) => res.json())
+      .then((response) => response.json())
       .then((data) => {
         setUsers(Array.isArray(data) ? data : []);
         setLoadingUsers(false);
       })
-      .catch((err) => {
-        console.error("Error fetching users:", err);
+      .catch((error) => {
+        console.error("Error fetching users:", error);
         setLoadingUsers(false);
       });
   };
@@ -192,114 +254,7 @@ function AdminDashboard() {
     fetchFeedbacks();
   }, []);
 
-  // Complaint handlers
-  const handleStatusChange = async (issueId, newStatus) => {
-    setUpdatingId(issueId);
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/issues/${issueId}/status`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            ...getAuthHeaders(),
-          },
-          body: JSON.stringify({ status: newStatus }),
-        }
-      );
-
-      if (!response.ok) throw new Error("Failed to update status");
-      const data = await response.json();
-
-      setIssues((currentIssues) =>
-        currentIssues.map((item) =>
-          item._id === issueId ? (data.issue ? data.issue : { ...item, status: newStatus }) : item
-        )
-      );
-      showToast(`Status updated to "${newStatus}"`, "success");
-    } catch (error) {
-      console.error(error);
-      showToast("Failed to update complaint status.", "error");
-    } finally {
-      setUpdatingId(null);
-    }
-  };
-
-  const handleDepartmentChange = async (issueId, departmentId) => {
-    setUpdatingId(issueId);
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/issues/${issueId}/department`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            ...getAuthHeaders(),
-          },
-          body: JSON.stringify({ department: departmentId || null }),
-        }
-      );
-
-      if (!response.ok) throw new Error("Failed to assign department");
-      const data = await response.json();
-
-      setIssues((currentIssues) =>
-        currentIssues.map((item) =>
-          item._id === issueId ? (data.issue ? data.issue : { ...item, department: departmentId }) : item
-        )
-      );
-
-      const deptName =
-        departments.find((d) => d._id === departmentId)?.name || "Unassigned";
-      showToast(`Department assigned: ${deptName}`, "success");
-    } catch (error) {
-      console.error(error);
-      showToast("Failed to assign department.", "error");
-    } finally {
-      setUpdatingId(null);
-    }
-  };
-
-  // User Management Handlers
-  const handleCreateUser = async (e) => {
-    e.preventDefault();
-    if (!newUserData.name || !newUserData.email || !newUserData.password) {
-      showToast("Please fill in name, email, and password.", "warning");
-      return;
-    }
-
-    setCreatingUser(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify(newUserData),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to create user.");
-      }
-
-      setUsers((prev) => [data.user, ...prev]);
-      showToast(`User ${data.user.name} created successfully!`, "success");
-      setIsCreateModalOpen(false);
-      setNewUserData({
-        name: "",
-        email: "",
-        password: "",
-        role: "user",
-      });
-    } catch (err) {
-      showToast(err.message || "Failed to create user.", "error");
-    } finally {
-      setCreatingUser(false);
-    }
-  };
-
+  // Department Creation & Editing Handlers
   const handleCreateDepartment = async (e) => {
     e.preventDefault();
     if (!newDeptData.name.trim()) {
@@ -316,7 +271,10 @@ function AdminDashboard() {
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(newDeptData.email.trim())) {
-      showToast("Please enter a valid email address with a domain (e.g. sanitation@fixmycity.com).", "error");
+      showToast(
+        "Please enter a valid email address with a domain (e.g. sanitation@fixmycity.com).",
+        "error"
+      );
       return;
     }
     if (!newDeptData.password.trim()) {
@@ -341,7 +299,10 @@ function AdminDashboard() {
       }
 
       setDepartments((prev) => [...prev, data.department]);
-      showToast(`Department "${data.department.name}" & login account created!`, "success");
+      showToast(
+        `Department "${data.department.name}" & login account created!`,
+        "success"
+      );
       setIsCreateDeptModalOpen(false);
       setNewDeptData({ name: "", description: "", email: "", password: "" });
       fetchDepartments();
@@ -350,85 +311,6 @@ function AdminDashboard() {
       showToast(err.message || "Failed to create department.", "error");
     } finally {
       setCreatingDept(false);
-    }
-  };
-
-  const handleOpenEditModal = (issue) => {
-    setEditingIssue(issue);
-    setEditFormData({
-      title: issue.title || "",
-      category: issue.category || "General",
-      description: issue.description || "",
-      status: issue.status || "Submitted",
-      department:
-        (typeof issue.department === "object" && issue.department !== null
-          ? issue.department._id
-          : issue.department) || "",
-    });
-  };
-
-  const handleSaveEdit = async (e) => {
-    e.preventDefault();
-    if (!editingIssue) return;
-    setSavingEdit(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/issues/${editingIssue._id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify(editFormData),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to update complaint.");
-      }
-
-      setIssues((prev) =>
-        prev.map((i) =>
-          i._id === editingIssue._id
-            ? (data.issue || {
-                ...i,
-                ...editFormData,
-                department: departments.find((d) => d._id === editFormData.department) || editFormData.department,
-              })
-            : i
-        )
-      );
-      showToast("Complaint updated successfully!", "success");
-      setEditingIssue(null);
-    } catch (err) {
-      showToast(err.message || "Failed to update complaint.", "error");
-    } finally {
-      setSavingEdit(false);
-    }
-  };
-
-  const handleDeleteIssue = async (issueId, issueTitle) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to delete complaint "${issueTitle || issueId}"? This action cannot be undone.`
-    );
-    if (!confirmed) return;
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/issues/${issueId}`, {
-        method: "DELETE",
-        headers: {
-          ...getAuthHeaders(),
-        },
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to delete complaint.");
-      }
-
-      setIssues((prev) => prev.filter((i) => i._id !== issueId));
-      showToast("Complaint deleted successfully!", "success");
-    } catch (err) {
-      showToast(err.message || "Failed to delete complaint.", "error");
     }
   };
 
@@ -456,14 +338,17 @@ function AdminDashboard() {
 
     setSavingDept(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/departments/${editingDept._id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify(editDeptData),
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/api/departments/${editingDept._id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
+          },
+          body: JSON.stringify(editDeptData),
+        }
+      );
 
       const data = await response.json();
       if (!response.ok) {
@@ -473,7 +358,10 @@ function AdminDashboard() {
       setDepartments((prev) =>
         prev.map((d) => (d._id === editingDept._id ? data.department : d))
       );
-      showToast(`Department "${data.department.name}" updated successfully!`, "success");
+      showToast(
+        `Department "${data.department.name}" updated successfully!`,
+        "success"
+      );
       setEditingDept(null);
       fetchDepartments();
       fetchIssues();
@@ -484,73 +372,175 @@ function AdminDashboard() {
     }
   };
 
-  const handleDeleteDept = async (id, name) => {
-    if (
-      !window.confirm(
-        `Are you sure you want to delete the department "${name}"?\n\nAny issues or staff assigned to this department will be unassigned.`
-      )
-    ) {
+  const handleDeleteDept = (id, name) => {
+    setDeleteModal({
+      isOpen: true,
+      title: "Delete Department",
+      itemName: name,
+      itemType: "Department",
+      message:
+        "Are you sure you want to delete this department? Any issues or staff assigned to this department will become unassigned.",
+      confirmText: "Delete Department",
+      isDeleting: false,
+      onConfirm: async () => {
+        setDeleteModal((prev) => ({ ...prev, isDeleting: true }));
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/departments/${id}`, {
+            method: "DELETE",
+            headers: getAuthHeaders(),
+          });
+
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.message || "Failed to delete department.");
+          }
+
+          setDepartments((prev) => prev.filter((d) => d._id !== id));
+          showToast(data.message || "Department deleted.", "success");
+          fetchDepartments();
+          fetchIssues();
+          fetchUsers();
+          closeDeleteModal();
+        } catch (err) {
+          showToast(err.message || "Failed to delete department.", "error");
+          setDeleteModal((prev) => ({ ...prev, isDeleting: false }));
+        }
+      },
+    });
+  };
+
+  // Complaint Edit & Delete Handlers
+  const handleOpenEditModal = (issue) => {
+    if (issue.status === "Resolved") {
+      showToast("Resolved complaints cannot be edited.", "warning");
       return;
     }
+    const deptId =
+      typeof issue.department === "object" && issue.department !== null
+        ? issue.department._id || ""
+        : issue.department || "";
 
+    setEditingIssue(issue);
+    setEditFormData({
+      title: issue.title || "",
+      category: issue.category || "General",
+      description: issue.description || "",
+      status:
+        !issue.status || issue.status === "Submitted"
+          ? "Pending"
+          : issue.status,
+      department: deptId,
+    });
+  };
+
+  const handleSaveEdit = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!editingIssue) return;
+    setSavingEdit(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/departments/${id}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-      });
+      const updatePayload = {
+        status: editFormData.status,
+        department: editFormData.department,
+      };
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/issues/${editingIssue._id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
+          },
+          body: JSON.stringify(updatePayload),
+        }
+      );
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.message || "Failed to delete department.");
+        throw new Error(data.message || "Failed to update complaint.");
       }
 
-      setDepartments((prev) => prev.filter((d) => d._id !== id));
-      showToast(data.message || "Department deleted.", "success");
-      fetchDepartments();
-      fetchIssues();
-      fetchUsers();
-    } catch (err) {
-      showToast(err.message || "Failed to delete department.", "error");
-    }
-  };
-
-  const handleUpdateUserRole = async (userId, newRole) => {
-    try {
-      const payload = { role: newRole };
-
-      const response = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Failed to update user.");
-
-      setUsers((prev) =>
-        prev.map((u) => (u._id === userId ? data.user : u))
+      setIssues((prev) =>
+        prev.map((i) =>
+          i._id === editingIssue._id
+            ? data.issue || {
+                ...i,
+                status: editFormData.status,
+                department:
+                  departments.find((d) => d._id === editFormData.department) ||
+                  editFormData.department,
+              }
+            : i
+        )
       );
-      showToast(`User updated successfully!`, "success");
+      showToast("Complaint updated successfully!", "success");
+      setEditingIssue(null);
+      fetchIssues();
     } catch (err) {
-      showToast(err.message || "Failed to update user.", "error");
+      showToast(err.message || "Failed to update complaint.", "error");
+    } finally {
+      setSavingEdit(false);
     }
   };
 
+  const handleDeleteIssue = (issueId, issueTitle) => {
+    const target = issues.find((i) => i._id === issueId);
+    if (target && target.status === "Resolved") {
+      showToast("Resolved complaints cannot be deleted.", "warning");
+      return;
+    }
+
+    setDeleteModal({
+      isOpen: true,
+      title: "Delete Complaint",
+      itemName: issueTitle || `#${issueId}`,
+      itemType: "Complaint",
+      message:
+        "Are you sure you want to delete this complaint? This action cannot be undone and will permanently remove this record from the system.",
+      confirmText: "Delete Complaint",
+      isDeleting: false,
+      onConfirm: async () => {
+        setDeleteModal((prev) => ({ ...prev, isDeleting: true }));
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/issues/${issueId}`, {
+            method: "DELETE",
+            headers: getAuthHeaders(),
+          });
+
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.message || "Failed to delete complaint.");
+          }
+
+          setIssues((prev) => prev.filter((i) => i._id !== issueId));
+          showToast("Complaint deleted successfully!", "success");
+          closeDeleteModal();
+        } catch (err) {
+          showToast(err.message || "Failed to delete complaint.", "error");
+          setDeleteModal((prev) => ({ ...prev, isDeleting: false }));
+        }
+      },
+    });
+  };
+
+  // User Actions Handlers
   const handleToggleBlockUser = async (user) => {
     const nextStatus = !user.isBlocked;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${user._id}/block`, {
-        method: "PUT",
-        headers: getAuthHeaders(),
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/api/users/${user._id}/block`,
+        {
+          method: "PUT",
+          headers: getAuthHeaders(),
+        }
+      );
 
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.message || `Failed to ${nextStatus ? "block" : "unblock"} user.`);
+        throw new Error(
+          data.message || `Failed to ${nextStatus ? "block" : "unblock"} user.`
+        );
       }
 
       setUsers((prev) =>
@@ -567,86 +557,118 @@ function AdminDashboard() {
         nextStatus ? "warning" : "success"
       );
     } catch (err) {
-      showToast(err.message || `Failed to update citizen block status.`, "error");
+      showToast(err.message || "Failed to update citizen block status.", "error");
     }
   };
 
-  const handleDeleteUser = async (userId, userName) => {
-    if (!window.confirm(`Are you sure you want to delete user "${userName}"? This cannot be undone.`)) {
-      return;
-    }
+  const handleDeleteUser = (userId, userName) => {
+    setDeleteModal({
+      isOpen: true,
+      title: "Delete User Account",
+      itemName: userName,
+      itemType: "User",
+      message:
+        "Are you sure you want to delete this user? Their account will be permanently removed and this action cannot be undone.",
+      confirmText: "Delete User",
+      isDeleting: false,
+      onConfirm: async () => {
+        setDeleteModal((prev) => ({ ...prev, isDeleting: true }));
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
+            method: "DELETE",
+            headers: getAuthHeaders(),
+          });
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-      });
+          const data = await response.json();
+          if (!response.ok)
+            throw new Error(data.message || "Failed to delete user.");
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Failed to delete user.");
-
-      setUsers((prev) => prev.filter((u) => u._id !== userId));
-      showToast(`User "${userName}" deleted successfully.`, "info");
-    } catch (err) {
-      showToast(err.message || "Failed to delete user.", "error");
-    }
+          setUsers((prev) => prev.filter((u) => u._id !== userId));
+          showToast(`User "${userName}" deleted successfully.`, "info");
+          closeDeleteModal();
+        } catch (err) {
+          showToast(err.message || "Failed to delete user.", "error");
+          setDeleteModal((prev) => ({ ...prev, isDeleting: false }));
+        }
+      },
+    });
   };
 
-  const handleDeleteFeedback = async (id, citizenName) => {
-    if (
-      !window.confirm(
-        `Are you sure you want to delete this feedback from "${citizenName}"? This action cannot be undone.`
-      )
-    ) {
-      return;
-    }
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/feedback/${id}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Failed to delete feedback.");
-      setFeedbacks((prev) => prev.filter((f) => f._id !== id));
-      showToast("Citizen feedback deleted successfully.", "info");
-    } catch (err) {
-      showToast(err.message || "Failed to delete feedback.", "error");
-    }
+  // Feedback Action Handlers
+  const handleDeleteFeedback = (id, citizenName) => {
+    setDeleteModal({
+      isOpen: true,
+      title: "Delete Feedback",
+      itemName: citizenName ? `Feedback from ${citizenName}` : "Feedback entry",
+      itemType: "Feedback",
+      message:
+        "Are you sure you want to delete this feedback? This action cannot be undone.",
+      confirmText: "Delete Feedback",
+      isDeleting: false,
+      onConfirm: async () => {
+        setDeleteModal((prev) => ({ ...prev, isDeleting: true }));
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/feedback/${id}`, {
+            method: "DELETE",
+            headers: getAuthHeaders(),
+          });
+          const data = await response.json();
+          if (!response.ok)
+            throw new Error(data.message || "Failed to delete feedback.");
+
+          setFeedbacks((prev) => prev.filter((f) => f._id !== id));
+          showToast("Feedback removed successfully.", "info");
+          closeDeleteModal();
+        } catch (err) {
+          showToast(err.message || "Failed to delete feedback.", "error");
+          setDeleteModal((prev) => ({ ...prev, isDeleting: false }));
+        }
+      },
+    });
   };
 
-  // Complaint counts & filtering
+  // Derived Computed Stats & Filters
+  const currentDept = useMemo(() => {
+    if (departmentFilter === "All" || departmentFilter === "Unassigned")
+      return null;
+    return departments.find((d) => String(d._id) === String(departmentFilter));
+  }, [departments, departmentFilter]);
+
   const deptIssueCounts = useMemo(() => {
     const counts = { unassigned: 0 };
     issues.forEach((issue) => {
-      const deptId =
+      const issueDeptId =
         typeof issue.department === "object" && issue.department !== null
           ? issue.department._id
           : issue.department;
-      if (deptId) {
-        counts[String(deptId)] = (counts[String(deptId)] || 0) + 1;
+
+      if (!issueDeptId) {
+        counts.unassigned = (counts.unassigned || 0) + 1;
       } else {
-        counts.unassigned += 1;
+        const key = String(issueDeptId);
+        counts[key] = (counts[key] || 0) + 1;
       }
     });
     return counts;
   }, [issues]);
-
-  const currentDept = useMemo(() => {
-    if (departmentFilter === "All" || departmentFilter === "Unassigned") return null;
-    return departments.find((d) => String(d._id) === String(departmentFilter));
-  }, [departments, departmentFilter]);
 
   const filteredIssues = useMemo(() => {
     return issues.filter((issue) => {
       const matchesSearch =
         searchQuery === "" ||
         issue.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        issue._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         issue.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        issue.description?.toLowerCase().includes(searchQuery.toLowerCase());
+        issue.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        issue._id?.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const normStatus =
+        !issue.status || issue.status === "Submitted"
+          ? "Pending"
+          : issue.status;
 
       const matchesStatus =
-        statusFilter === "All" || issue.status === statusFilter;
+        statusFilter === "All" ||
+        normStatus.toLowerCase() === statusFilter.toLowerCase();
 
       const issueDeptId =
         typeof issue.department === "object" && issue.department !== null
@@ -684,18 +706,19 @@ function AdminDashboard() {
 
     return {
       total: relevant.length,
-      submitted: relevant.filter((i) => i.status === "Submitted").length,
+      pending: relevant.filter(
+        (i) => !i.status || i.status === "Pending" || i.status === "Submitted"
+      ).length,
       assigned: relevant.filter((i) => i.status === "Assigned").length,
-      verified: relevant.filter((i) => i.status === "Verified").length,
-      inProgress: relevant.filter((i) => i.status === "In Progress").length,
-      resolved: relevant.filter((i) => i.status === "Resolved").length,
       rejected: relevant.filter((i) => i.status === "Rejected").length,
     };
   }, [issues, departmentFilter]);
 
-  // User Stats & Filtering (Citizens only; Admin & Department accounts managed separately)
+  // User Stats & Filtering (Citizens only)
   const userStats = useMemo(() => {
-    const manageableUsers = users.filter((u) => u.role !== "department" && u.role !== "admin");
+    const manageableUsers = users.filter(
+      (u) => u.role !== "department" && u.role !== "admin"
+    );
     return {
       total: manageableUsers.length,
       active: manageableUsers.filter((u) => !u.isBlocked).length,
@@ -712,35 +735,13 @@ function AdminDashboard() {
         return (
           query === "" ||
           u.name?.toLowerCase().includes(query) ||
-          u.email?.toLowerCase().includes(query)
+          u.email?.toLowerCase().includes(query) ||
+          u._id?.toLowerCase().includes(query)
         );
       });
   }, [users, userSearchQuery]);
 
-  // Reset pagination when filters change
-  useEffect(() => {
-    setComplaintsPage(1);
-  }, [departmentFilter, statusFilter, searchQuery]);
-
-  useEffect(() => {
-    setUsersPage(1);
-  }, [userSearchQuery]);
-
-  // Paginated Complaints
-  const totalComplaintsPages = Math.ceil(filteredIssues.length / complaintsPageSize) || 1;
-  const paginatedIssues = useMemo(() => {
-    const start = (complaintsPage - 1) * complaintsPageSize;
-    return filteredIssues.slice(start, start + complaintsPageSize);
-  }, [filteredIssues, complaintsPage, complaintsPageSize]);
-
-  // Paginated Users
-  const totalUsersPages = Math.ceil(filteredUsers.length / usersPageSize) || 1;
-  const paginatedUsers = useMemo(() => {
-    const start = (usersPage - 1) * usersPageSize;
-    return filteredUsers.slice(start, start + usersPageSize);
-  }, [filteredUsers, usersPage, usersPageSize]);
-
-  // Filtered & Paginated Departments
+  // Filtered Departments
   const filteredDepartments = useMemo(() => {
     return departments.filter((d) => {
       const query = deptSearchQuery.toLowerCase();
@@ -752,60 +753,20 @@ function AdminDashboard() {
     });
   }, [departments, deptSearchQuery]);
 
-  useEffect(() => {
-    setDepartmentsPage(1);
-  }, [deptSearchQuery]);
-
-  useEffect(() => {
-    setFeedbackPage(1);
-  }, [feedbackSearchQuery, feedbackRatingFilter]);
-
-  const totalDepartmentsPages =
-    Math.ceil(filteredDepartments.length / departmentsPageSize) || 1;
-  const paginatedDepartments = useMemo(() => {
-    const start = (departmentsPage - 1) * departmentsPageSize;
-    return filteredDepartments.slice(start, start + departmentsPageSize);
-  }, [filteredDepartments, departmentsPage, departmentsPageSize]);
-
-  const getCategoryIcon = (category) => {
-    if (!category) return "⚠️";
-    const lower = category.toLowerCase();
-    if (lower.includes("road") || lower.includes("pothole")) return "🚧";
-    if (lower.includes("light")) return "💡";
-    if (lower.includes("garbage") || lower.includes("waste")) return "🗑️";
-    if (lower.includes("water")) return "🚰";
-    if (lower.includes("drainage")) return "🌊";
-    if (lower.includes("safety") || lower.includes("public")) return "🚨";
-    return "📍";
-  };
-
-  const getDeptIcon = (name) => {
-    if (!name) return "🏢";
-    const lower = name.toLowerCase();
-    if (lower.includes("electr") || lower.includes("light")) return "⚡";
-    if (lower.includes("water") || lower.includes("drain")) return "🚰";
-    if (lower.includes("road") || lower.includes("infra")) return "🚧";
-    if (lower.includes("sanitat") || lower.includes("waste") || lower.includes("garbage")) return "🗑️";
-    return "🏢";
-  };
-
-  const getStatusClass = (status) => {
-    return `status-${(status || "submitted").toLowerCase().replace(/\s+/g, "-")}`;
-  };
-
-  const getPhotoUrl = (path) => {
-    if (!path) return "";
-    if (path.startsWith("http://") || path.startsWith("https://")) {
-      return path;
-    }
-    return `${API_BASE_URL}${path}`;
-  };
-
-  // Feedback Statistics
+  // Feedback Statistics & Filtering
   const feedbackStats = useMemo(() => {
     const total = feedbacks.length;
     if (total === 0) {
-      return { total: 0, avgRating: "0.0", count5: 0, count4: 0, count3: 0, count2: 0, count1: 0, satisfactionRate: 0 };
+      return {
+        total: 0,
+        avgRating: "0.0",
+        count5: 0,
+        count4: 0,
+        count3: 0,
+        count2: 0,
+        count1: 0,
+        satisfactionRate: 0,
+      };
     }
     let sum = 0;
     let count5 = 0;
@@ -827,16 +788,20 @@ function AdminDashboard() {
     const avgRating = (sum / total).toFixed(1);
     const satisfactionRate = Math.round(((count5 + count4) / total) * 100);
 
-    return { total, avgRating, count5, count4, count3, count2, count1, satisfactionRate };
+    return {
+      total,
+      avgRating,
+      count5,
+      count4,
+      count3,
+      count2,
+      count1,
+      satisfactionRate,
+    };
   }, [feedbacks]);
 
-  // Filtered & Paginated Feedbacks
   const filteredFeedbacks = useMemo(() => {
     return feedbacks.filter((f) => {
-      if (feedbackRatingFilter !== "All") {
-        if (Number(f.rating) !== Number(feedbackRatingFilter)) return false;
-      }
-
       if (feedbackSearchQuery.trim()) {
         const query = feedbackSearchQuery.toLowerCase();
         const cName = (f.userName || f.user?.name || "").toLowerCase();
@@ -856,31 +821,52 @@ function AdminDashboard() {
 
       return true;
     });
-  }, [feedbacks, feedbackRatingFilter, feedbackSearchQuery]);
+  }, [feedbacks, feedbackSearchQuery]);
 
+  // Pagination Reset Effects
+  useEffect(() => {
+    setComplaintsPage(1);
+  }, [departmentFilter, statusFilter, searchQuery]);
+
+  useEffect(() => {
+    setUsersPage(1);
+  }, [userSearchQuery]);
+
+  useEffect(() => {
+    setDepartmentsPage(1);
+  }, [deptSearchQuery]);
+
+  useEffect(() => {
+    setFeedbackPage(1);
+  }, [feedbackSearchQuery]);
+
+  // Paginated Slices
+  const totalComplaintsPages =
+    Math.ceil(filteredIssues.length / complaintsPageSize) || 1;
+  const paginatedIssues = useMemo(() => {
+    const start = (complaintsPage - 1) * complaintsPageSize;
+    return filteredIssues.slice(start, start + complaintsPageSize);
+  }, [filteredIssues, complaintsPage, complaintsPageSize]);
+
+  const totalUsersPages = Math.ceil(filteredUsers.length / usersPageSize) || 1;
+  const paginatedUsers = useMemo(() => {
+    const start = (usersPage - 1) * usersPageSize;
+    return filteredUsers.slice(start, start + usersPageSize);
+  }, [filteredUsers, usersPage, usersPageSize]);
+
+  const totalDepartmentsPages =
+    Math.ceil(filteredDepartments.length / departmentsPageSize) || 1;
+  const paginatedDepartments = useMemo(() => {
+    const start = (departmentsPage - 1) * departmentsPageSize;
+    return filteredDepartments.slice(start, start + departmentsPageSize);
+  }, [filteredDepartments, departmentsPage, departmentsPageSize]);
+
+  const feedbackTotalPages =
+    Math.ceil(filteredFeedbacks.length / feedbackPageSize) || 1;
   const paginatedFeedbacks = useMemo(() => {
     const startIndex = (feedbackPage - 1) * feedbackPageSize;
     return filteredFeedbacks.slice(startIndex, startIndex + feedbackPageSize);
   }, [filteredFeedbacks, feedbackPage, feedbackPageSize]);
-
-  const feedbackTotalPages = Math.ceil(filteredFeedbacks.length / feedbackPageSize) || 1;
-
-  const renderStarRating = (rating) => {
-    const r = Math.min(5, Math.max(1, Math.round(Number(rating) || 5)));
-    return (
-      <div className="fb-stars-row" title={`${r} of 5 stars`}>
-        {[1, 2, 3, 4, 5].map((star) => (
-          <span
-            key={star}
-            className={star <= r ? "fb-star-icon" : "fb-star-empty"}
-          >
-            ★
-          </span>
-        ))}
-        <span className="fb-rating-badge">{r}.0</span>
-      </div>
-    );
-  };
 
   return (
     <div className="dept-sidebar-layout admin-sidebar-theme">
@@ -892,2549 +878,223 @@ function AdminDashboard() {
         />
       )}
 
-      {/* Lightbox Photo Preview Modal (Rendered via Portal to document.body to ensure top-level stacking above all modals) */}
-      {lightboxImage &&
-        createPortal(
-          <div
-            className="image-lightbox-overlay"
-            style={{ zIndex: 999999999 }}
-            onClick={() => setLightboxImage(null)}
-          >
-            <div
-              className="image-lightbox-content"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                className="image-lightbox-close-btn"
-                onClick={() => setLightboxImage(null)}
-              >
-                ✕
-              </button>
-              <img src={lightboxImage.url} alt={lightboxImage.title || "Proof"} />
-              <div className="image-lightbox-caption">
-                {lightboxImage.title} • {lightboxImage.type}
-              </div>
-            </div>
-          </div>,
-          document.body
-        )}
+      {/* Lightbox Photo Preview Modal */}
+      <LightboxModal
+        lightboxImage={lightboxImage}
+        onClose={() => setLightboxImage(null)}
+      />
 
-      {/* View User / Citizen Modal */}
-      {viewingUser && (
-        <div className="modal-overlay" onClick={() => setViewingUser(null)}>
-          <div
-            className="modal-dialog"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: "540px", maxHeight: "90vh", overflowY: "auto" }}
-          >
-            <div className="modal-header">
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <div
-                  className={`user-avatar-circle role-${viewingUser.role}`}
-                  style={{ width: "42px", height: "42px", fontSize: "18px" }}
-                >
-                  {viewingUser.name ? viewingUser.name.charAt(0).toUpperCase() : "U"}
-                </div>
-                <div>
-                  <h2 className="modal-title" style={{ margin: 0 }}>
-                    {viewingUser.name || "Citizen Account"}
-                  </h2>
-                  <span style={{ fontSize: "11px", color: "#94a3b8" }}>
-                    ID: #{viewingUser._id}
-                  </span>
-                </div>
-              </div>
-              <button
-                className="modal-close-btn"
-                onClick={() => setViewingUser(null)}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "14px" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                <div>
-                  <label style={{ fontSize: "11px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>
-                    Email Address
-                  </label>
-                  <div style={{ fontSize: "13.5px", color: "#38bdf8", fontWeight: 600 }}>
-                    ✉️ {viewingUser.email}
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: "11px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>
-                    Account Status
-                  </label>
-                  <div>
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "5px",
-                        padding: "3px 10px",
-                        borderRadius: "999px",
-                        fontSize: "12px",
-                        fontWeight: 700,
-                        background: viewingUser.isBlocked ? "rgba(239, 68, 68, 0.15)" : "rgba(34, 197, 94, 0.15)",
-                        color: viewingUser.isBlocked ? "#f87171" : "#4ade80",
-                        border: `1px solid ${viewingUser.isBlocked ? "rgba(239, 68, 68, 0.3)" : "rgba(34, 197, 94, 0.3)"}`,
-                      }}
-                    >
-                      {viewingUser.isBlocked ? "🔴 Blocked" : "🟢 Active"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {viewingUser.role === "department" && (
-                <div>
-                  <label style={{ fontSize: "11px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>
-                    Assigned Municipal Department
-                  </label>
-                  <div style={{ fontSize: "13.5px", color: "#a855f7", fontWeight: 600 }}>
-                    🏢{" "}
-                    {typeof viewingUser.department === "object" && viewingUser.department !== null
-                      ? viewingUser.department.name
-                      : departments.find((d) => d._id === viewingUser.department)?.name || "Unassigned"}
-                  </div>
-                </div>
-              )}
-
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px", paddingTop: "14px", borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}>
-                <span style={{ fontSize: "12px", color: "#94a3b8" }}>
-                  Registered: {viewingUser.createdAt ? new Date(viewingUser.createdAt).toLocaleDateString() : "Active"}
-                </span>
-                <div style={{ display: "flex", gap: "10px" }}>
-                  <button
-                    type="button"
-                    className="btn-modal-cancel"
-                    onClick={() => handleToggleBlockUser(viewingUser)}
-                    style={{
-                      color: viewingUser.isBlocked ? "#4ade80" : "#f87171",
-                      borderColor: viewingUser.isBlocked ? "rgba(34, 197, 94, 0.4)" : "rgba(239, 68, 68, 0.4)",
-                    }}
-                  >
-                    {viewingUser.isBlocked ? "🔓 Unblock Citizen" : "🚫 Block Citizen"}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-modal-submit"
-                    onClick={() => setViewingUser(null)}
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* View User Details Modal */}
+      <ViewUserModal
+        user={viewingUser}
+        departments={departments}
+        onClose={() => setViewingUser(null)}
+        onToggleBlock={handleToggleBlockUser}
+      />
 
       {/* Create Department Modal */}
-      {isCreateDeptModalOpen && (
-        <div
-          className="modal-overlay"
-          onClick={() => setIsCreateDeptModalOpen(false)}
-        >
-          <div
-            className="modal-dialog"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: "480px" }}
-          >
-            <div className="modal-header">
-              <h2 className="modal-title">🏢 Create New Department</h2>
-              <button
-                className="modal-close-btn"
-                onClick={() => setIsCreateDeptModalOpen(false)}
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateDepartment} className="modal-form">
-              <div className="modal-form-group">
-                <label>Department Name *</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Parks & Recreation, Traffic Management"
-                  required
-                  value={newDeptData.name}
-                  onChange={(e) =>
-                    setNewDeptData({ ...newDeptData, name: e.target.value })
-                  }
-                />
-              </div>
-
-              <div className="modal-form-group">
-                <label>Department Responsibilities & Description *</label>
-                <textarea
-                  placeholder="e.g. Oversight and maintenance of municipal public works, parks and recreation facilities"
-                  required
-                  rows="3"
-                  style={{
-                    background: "#0d1117",
-                    border: "1px solid rgba(255, 255, 255, 0.16)",
-                    borderRadius: "8px",
-                    color: "#f1f5f9",
-                    padding: "10px 14px",
-                    fontSize: "13.5px",
-                    outline: "none",
-                    width: "100%",
-                    boxSizing: "border-box",
-                    resize: "vertical",
-                  }}
-                  value={newDeptData.description}
-                  onChange={(e) =>
-                    setNewDeptData({ ...newDeptData, description: e.target.value })
-                  }
-                />
-              </div>
-
-              <div className="modal-form-group">
-                <label>Department Login Email *</label>
-                <input
-                  type="email"
-                  placeholder="e.g. sanitation@fixmycity.gov"
-                  required
-                  value={newDeptData.email}
-                  onChange={(e) =>
-                    setNewDeptData({ ...newDeptData, email: e.target.value })
-                  }
-                />
-              </div>
-
-              <div className="modal-form-group">
-                <label>Department Login Password *</label>
-                <div style={{ position: "relative" }}>
-                  <input
-                    type={showDeptPassword ? "text" : "password"}
-                    placeholder="Set initial password for department login"
-                    required
-                    style={{ width: "100%", paddingRight: "45px" }}
-                    value={newDeptData.password}
-                    onChange={(e) =>
-                      setNewDeptData({ ...newDeptData, password: e.target.value })
-                    }
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowDeptPassword(!showDeptPassword)}
-                    style={{
-                      position: "absolute",
-                      right: "10px",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      border: "none",
-                      background: "none",
-                      cursor: "pointer",
-                      fontSize: "18px",
-                      padding: 0,
-                    }}
-                    title={showDeptPassword ? "Hide password" : "Show password"}
-                  >
-                    {showDeptPassword ? "🙈" : "👁️"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="modal-actions" style={{ marginTop: "20px" }}>
-                <button
-                  type="button"
-                  className="btn-modal-cancel"
-                  onClick={() => setIsCreateDeptModalOpen(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-modal-submit"
-                  disabled={creatingDept}
-                >
-                  {creatingDept ? "Creating..." : "🏢 Create Department"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <CreateDeptModal
+        isOpen={isCreateDeptModalOpen}
+        newDeptData={newDeptData}
+        setNewDeptData={setNewDeptData}
+        creatingDept={creatingDept}
+        showDeptPassword={showDeptPassword}
+        setShowDeptPassword={setShowDeptPassword}
+        onClose={() => setIsCreateDeptModalOpen(false)}
+        onSubmit={handleCreateDepartment}
+      />
 
       {/* View Department Details Modal */}
-      {viewingDept && (
-        <div className="modal-overlay" onClick={() => setViewingDept(null)}>
-          <div
-            className="modal-dialog"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: "560px", maxHeight: "90vh", overflowY: "auto" }}
-          >
-            <div className="modal-header">
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <span style={{ fontSize: "24px" }}>{getDeptIcon(viewingDept.name)}</span>
-                <div>
-                  <h2 className="modal-title" style={{ margin: 0 }}>
-                    {viewingDept.name}
-                  </h2>
-                  <span style={{ fontSize: "11px", color: "#94a3b8" }}>
-                    ID: #{viewingDept._id}
-                  </span>
-                </div>
-              </div>
-              <button
-                className="modal-close-btn"
-                onClick={() => setViewingDept(null)}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "14px" }}>
-              <div>
-                <label style={{ fontSize: "11px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>
-                  Description
-                </label>
-                <div style={{ fontSize: "14px", color: "#cbd5e1", lineHeight: "1.5", background: "rgba(0,0,0,0.25)", padding: "10px 14px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.06)" }}>
-                  {viewingDept.description || "No description provided."}
-                </div>
-              </div>
-
-              {viewingDept.email && (
-                <div>
-                  <label style={{ fontSize: "11px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>
-                    Official Login Email
-                  </label>
-                  <div style={{ fontSize: "14px", color: "#38bdf8", fontWeight: 600 }}>
-                    📧 {viewingDept.email}
-                  </div>
-                </div>
-              )}
-
-              {/* Assigned Complaints Statistic */}
-              <div style={{ background: "rgba(56, 189, 248, 0.08)", border: "1px solid rgba(56, 189, 248, 0.2)", borderRadius: "8px", padding: "12px" }}>
-                <div style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 700 }}>
-                  Assigned Complaints
-                </div>
-                <div style={{ fontSize: "20px", fontWeight: 800, color: "#38bdf8", marginTop: "4px" }}>
-                  {issues.filter((i) => (typeof i.department === "object" && i.department !== null ? i.department._id : i.department) === viewingDept._id).length}
-                </div>
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px", paddingTop: "14px", borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}>
-                <span style={{ fontSize: "12px", color: "#94a3b8" }}>
-                  Created: {viewingDept.createdAt ? new Date(viewingDept.createdAt).toLocaleDateString() : "Active"}
-                </span>
-                <div style={{ display: "flex", gap: "10px" }}>
-                  <button
-                    type="button"
-                    className="btn-modal-cancel"
-                    onClick={() => {
-                      const deptToEdit = viewingDept;
-                      setViewingDept(null);
-                      handleOpenEditDept(deptToEdit);
-                    }}
-                  >
-                    ✏️ Edit Department
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-modal-submit"
-                    onClick={() => setViewingDept(null)}
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ViewDeptModal
+        viewingDept={viewingDept}
+        issues={issues}
+        onClose={() => setViewingDept(null)}
+        onEdit={(dept) => {
+          setViewingDept(null);
+          handleOpenEditDept(dept);
+        }}
+      />
 
       {/* Edit Department Modal */}
-      {editingDept && (
-        <div className="modal-overlay" onClick={() => setEditingDept(null)}>
-          <div
-            className="modal-dialog"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: "480px" }}
-          >
-            <div className="modal-header">
-              <h2 className="modal-title">✏️ Edit Department</h2>
-              <button
-                className="modal-close-btn"
-                onClick={() => setEditingDept(null)}
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveEditDept} className="modal-form">
-              <div className="modal-form-group">
-                <label>Department Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={editDeptData.name}
-                  onChange={(e) =>
-                    setEditDeptData({ ...editDeptData, name: e.target.value })
-                  }
-                  placeholder="e.g. Roads & Bridges"
-                />
-              </div>
-
-              <div className="modal-form-group">
-                <label>Description & Scope *</label>
-                <textarea
-                  rows="3"
-                  required
-                  style={{
-                    background: "rgba(15, 23, 42, 0.6)",
-                    border: "1px solid rgba(255, 255, 255, 0.16)",
-                    borderRadius: "8px",
-                    color: "#f1f5f9",
-                    padding: "10px 14px",
-                    fontSize: "13.5px",
-                    outline: "none",
-                    width: "100%",
-                    boxSizing: "border-box",
-                    resize: "vertical",
-                  }}
-                  value={editDeptData.description}
-                  onChange={(e) =>
-                    setEditDeptData({ ...editDeptData, description: e.target.value })
-                  }
-                  placeholder="Describe scope, responsibilities..."
-                />
-              </div>
-
-              <div className="modal-form-group">
-                <label>Department Login Email</label>
-                <input
-                  type="email"
-                  placeholder="e.g. sanitation@fixmycity.gov"
-                  value={editDeptData.email}
-                  onChange={(e) =>
-                    setEditDeptData({ ...editDeptData, email: e.target.value })
-                  }
-                />
-              </div>
-
-              <div className="modal-form-group">
-                <label>Reset Password (leave blank to keep current)</label>
-                <div style={{ position: "relative" }}>
-                  <input
-                    type={showEditDeptPassword ? "text" : "password"}
-                    placeholder="Enter new password"
-                    style={{ width: "100%", paddingRight: "45px" }}
-                    value={editDeptData.password}
-                    onChange={(e) =>
-                      setEditDeptData({ ...editDeptData, password: e.target.value })
-                    }
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowEditDeptPassword(!showEditDeptPassword)}
-                    style={{
-                      position: "absolute",
-                      right: "10px",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      border: "none",
-                      background: "none",
-                      cursor: "pointer",
-                      fontSize: "18px",
-                      padding: 0,
-                    }}
-                    title={showEditDeptPassword ? "Hide password" : "Show password"}
-                  >
-                    {showEditDeptPassword ? "🙈" : "👁️"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="modal-actions" style={{ marginTop: "16px" }}>
-                <button
-                  type="button"
-                  className="btn-modal-cancel"
-                  onClick={() => setEditingDept(null)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-modal-submit"
-                  disabled={savingDept}
-                >
-                  {savingDept ? "Saving..." : "Save Changes"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <EditDeptModal
+        editingDept={editingDept}
+        editDeptData={editDeptData}
+        setEditDeptData={setEditDeptData}
+        savingDept={savingDept}
+        showEditDeptPassword={showEditDeptPassword}
+        setShowEditDeptPassword={setShowEditDeptPassword}
+        onClose={() => setEditingDept(null)}
+        onSubmit={handleSaveEditDept}
+      />
 
       {/* View Complaint Details Modal */}
-      {viewingIssue && (
-        <div className="modal-overlay" onClick={() => setViewingIssue(null)}>
-          <div
-            className="modal-dialog"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: "620px", maxHeight: "90vh", overflowY: "auto" }}
-          >
-            <div className="modal-header">
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <h2 className="modal-title" style={{ margin: 0 }}>
-                  📋 Complaint Details
-                </h2>
-                <span className={`pro-status-badge ${getStatusClass(viewingIssue.status)}`}>
-                  <span className="status-dot"></span>
-                  {viewingIssue.status || "Submitted"}
-                </span>
-              </div>
-              <button
-                className="modal-close-btn"
-                onClick={() => setViewingIssue(null)}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "14px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px", background: "rgba(255, 255, 255, 0.03)", padding: "10px 14px", borderRadius: "8px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
-                <div>
-                  <span style={{ fontSize: "11px", color: "#94a3b8", display: "block" }}>COMPLAINT ID</span>
-                  <span style={{ fontFamily: "monospace", color: "#38bdf8", fontWeight: "700" }}>
-                    #{viewingIssue._id}
-                  </span>
-                </div>
-                <div>
-                  <span style={{ fontSize: "11px", color: "#94a3b8", display: "block" }}>USER NAME</span>
-                  {(() => {
-                    const citizenObj =
-                      typeof viewingIssue.user === "object" && viewingIssue.user !== null
-                        ? viewingIssue.user
-                        : users.find((u) => u._id === viewingIssue.user);
-                    const citizenName = citizenObj?.name || viewingIssue.userName || "Citizen";
-                    const citizenEmail = citizenObj?.email;
-
-                    return (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                        <span style={{ color: "#f1f5f9", fontWeight: "600", fontSize: "13px" }}>
-                          👤 {citizenName}
-                        </span>
-                        {citizenEmail && (
-                          <span style={{ color: "#38bdf8", fontSize: "11.5px", fontWeight: "500" }}>
-                            ✉️ {citizenEmail}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-                <div>
-                  <span style={{ fontSize: "11px", color: "#94a3b8", display: "block" }}>DEPARTMENT</span>
-                  <span style={{ color: "#f1f5f9", fontWeight: "600", fontSize: "13px" }}>
-                    🏢 {
-                      departments.find((d) => d._id === (typeof viewingIssue.department === "object" && viewingIssue.department !== null ? viewingIssue.department._id : viewingIssue.department))?.name || "Unassigned"
-                    }
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label style={{ fontSize: "11px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>
-                  Title
-                </label>
-                <div style={{ fontSize: "16px", fontWeight: "700", color: "#f8fafc" }}>
-                  {viewingIssue.title}
-                </div>
-              </div>
-
-              <div>
-                <label style={{ fontSize: "11px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>
-                  Description
-                </label>
-                <div style={{ fontSize: "14px", color: "#cbd5e1", lineHeight: "1.5", background: "rgba(0,0,0,0.25)", padding: "10px 14px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.06)" }}>
-                  {viewingIssue.description || "No description provided."}
-                </div>
-              </div>
-
-              {(viewingIssue.latitude || viewingIssue.longitude) && (
-                <div>
-                  <label style={{ fontSize: "11px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>
-                    Location
-                  </label>
-                  <a
-                    className="meta-chip location-link"
-                    style={{ display: "inline-flex", width: "fit-content" }}
-                    href={`https://www.google.com/maps?q=${viewingIssue.latitude},${viewingIssue.longitude}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    📍 Coordinates: {viewingIssue.latitude}, {viewingIssue.longitude} ↗ (Open in Google Maps)
-                  </a>
-                </div>
-              )}
-
-              {(viewingIssue.photo || viewingIssue.resolvedPhoto) && (
-                <div>
-                  <label style={{ fontSize: "11px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>
-                    Photo Proofs
-                  </label>
-                  <div style={{ display: "flex", gap: "14px", flexWrap: "wrap" }}>
-                    {viewingIssue.photo && (
-                      <div
-                        style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.18)", borderRadius: "8px", overflow: "hidden", width: "160px", background: "rgba(15,23,42,0.9)", transition: "transform 0.2s ease, border-color 0.2s ease" }}
-                        onClick={() =>
-                          setLightboxImage({
-                            url: getPhotoUrl(viewingIssue.photo),
-                            title: viewingIssue.title,
-                            type: "Citizen Photo Proof",
-                          })
-                        }
-                        title="Click to expand full photo"
-                      >
-                        <img
-                          src={getPhotoUrl(viewingIssue.photo)}
-                          alt="Citizen Proof"
-                          style={{ width: "100%", height: "110px", objectFit: "cover", display: "block" }}
-                        />
-                        <div style={{ padding: "6px 8px", fontSize: "11px", color: "#38bdf8", textAlign: "center", background: "rgba(15,23,42,0.95)", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}>
-                          📷 Citizen Proof (Zoom)
-                        </div>
-                      </div>
-                    )}
-                    {viewingIssue.resolvedPhoto && (
-                      <div
-                        style={{ cursor: "pointer", border: "2px solid #10b981", borderRadius: "8px", overflow: "hidden", width: "160px", background: "rgba(15,23,42,0.9)", transition: "transform 0.2s ease" }}
-                        onClick={() =>
-                          setLightboxImage({
-                            url: getPhotoUrl(viewingIssue.resolvedPhoto),
-                            title: viewingIssue.title,
-                            type: "Completed Work Proof",
-                          })
-                        }
-                        title="Click to expand resolved proof"
-                      >
-                        <img
-                          src={getPhotoUrl(viewingIssue.resolvedPhoto)}
-                          alt="Resolved Proof"
-                          style={{ width: "100%", height: "110px", objectFit: "cover", display: "block" }}
-                        />
-                        <div style={{ padding: "6px 8px", fontSize: "11px", color: "#10b981", textAlign: "center", background: "rgba(15,23,42,0.95)", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}>
-                          ✅ Resolved Proof (Zoom)
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Citizen Rating & Feedback */}
-              {viewingIssue.feedback?.rating && (
-                <div style={{ background: "rgba(234, 179, 8, 0.08)", border: "1px solid rgba(234, 179, 8, 0.3)", borderRadius: "8px", padding: "12px 16px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: "11px", fontWeight: "700", color: "#facc15", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                      ⭐ Citizen Resolution Feedback
-                    </span>
-                    <span style={{ color: "#facc15", fontWeight: "700", fontSize: "14px" }}>
-                      {"★".repeat(viewingIssue.feedback.rating)}{"☆".repeat(5 - viewingIssue.feedback.rating)} ({viewingIssue.feedback.rating}/5)
-                    </span>
-                  </div>
-                  {viewingIssue.feedback.comment && (
-                    <p style={{ margin: "8px 0 0 0", fontSize: "13px", color: "#e2e8f0", fontStyle: "italic" }}>
-                      "{viewingIssue.feedback.comment}"
-                    </p>
-                  )}
-                </div>
-              )}
-
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px", paddingTop: "14px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                <span style={{ fontSize: "12px", color: "#94a3b8" }}>
-                  Reported: {viewingIssue.createdAt ? new Date(viewingIssue.createdAt).toLocaleString() : "Recently"}
-                </span>
-                <div style={{ display: "flex", gap: "10px" }}>
-                  <button
-                    type="button"
-                    className="btn-modal-cancel"
-                    onClick={() => {
-                      const itemToEdit = viewingIssue;
-                      setViewingIssue(null);
-                      handleOpenEditModal(itemToEdit);
-                    }}
-                  >
-                    ✏️ Edit Complaint
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-modal-submit"
-                    onClick={() => setViewingIssue(null)}
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ViewIssueModal
+        issue={viewingIssue}
+        users={users}
+        departments={departments}
+        onClose={() => setViewingIssue(null)}
+        onEdit={(item) => {
+          setViewingIssue(null);
+          handleOpenEditModal(item);
+        }}
+        onInspectPhoto={setLightboxImage}
+      />
 
       {/* Edit Complaint Modal */}
-      {editingIssue && (
-        <div className="modal-overlay" onClick={() => setEditingIssue(null)}>
-          <div
-            className="modal-dialog"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: "520px" }}
-          >
-            <div className="modal-header">
-              <h2 className="modal-title">✏️ Edit Complaint #{editingIssue._id?.slice(-6)}</h2>
-              <button
-                className="modal-close-btn"
-                onClick={() => setEditingIssue(null)}
-              >
-                ✕
-              </button>
-            </div>
+      <EditIssueModal
+        editingIssue={editingIssue}
+        editFormData={editFormData}
+        setEditFormData={setEditFormData}
+        departments={departments}
+        savingEdit={savingEdit}
+        onClose={() => setEditingIssue(null)}
+        onSubmit={handleSaveEdit}
+      />
 
-            <form onSubmit={handleSaveEdit} className="modal-form">
-              <div className="modal-form-group">
-                <label>Complaint Title *</label>
-                <input
-                  type="text"
-                  required
-                  value={editFormData.title}
-                  onChange={(e) =>
-                    setEditFormData({ ...editFormData, title: e.target.value })
-                  }
-                />
-              </div>
+      {/* Reusable Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={deleteModal.isOpen}
+        title={deleteModal.title}
+        itemName={deleteModal.itemName}
+        itemType={deleteModal.itemType}
+        message={deleteModal.message}
+        confirmText={deleteModal.confirmText}
+        isDeleting={deleteModal.isDeleting}
+        onConfirm={deleteModal.onConfirm}
+        onClose={closeDeleteModal}
+      />
 
+      {/* Left Sidebar Navigation Component */}
+      <AdminSidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        isCollapsed={isCollapsed}
+        setIsCollapsed={setIsCollapsed}
+        isMobileOpen={isMobileOpen}
+        setIsMobileOpen={setIsMobileOpen}
+        onLogout={handleLogout}
+        onTabChange={(tabKey) => {
+          if (tabKey === "complaints") {
+            setDepartmentFilter("All");
+            setStatusFilter("All");
+            setSearchQuery("");
+          } else if (tabKey === "users") {
+            setUserSearchQuery("");
+          } else if (tabKey === "departments") {
+            setDeptSearchQuery("");
+            setDepartmentsPage(1);
+          } else if (tabKey === "feedbacks") {
+            setFeedbackSearchQuery("");
+            setFeedbackPage(1);
+          }
+        }}
+      />
 
-              <div className="modal-form-group">
-                <label>Current Status</label>
-                <select
-                  value={editFormData.status}
-                  onChange={(e) =>
-                    setEditFormData({ ...editFormData, status: e.target.value })
-                  }
-                >
-                  <option value="Submitted">📥 Submitted</option>
-                  <option value="Assigned">🏢 Assigned</option>
-                  <option value="Rejected">❌ Rejected</option>
-                </select>
-              </div>
-
-              <div className="modal-form-group">
-                <label>Assigned Department</label>
-                <select
-                  value={editFormData.department}
-                  onChange={(e) =>
-                    setEditFormData({ ...editFormData, department: e.target.value })
-                  }
-                >
-                  <option value="">⚠️ Unassigned (None)</option>
-                  {departments.map((dept) => (
-                    <option key={dept._id} value={dept._id}>
-                      {dept.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="modal-form-group">
-                <label>Description</label>
-                <textarea
-                  rows="3"
-                  value={editFormData.description}
-                  onChange={(e) =>
-                    setEditFormData({ ...editFormData, description: e.target.value })
-                  }
-                  style={{
-                    background: "#0d1117",
-                    border: "1px solid rgba(255, 255, 255, 0.16)",
-                    borderRadius: "8px",
-                    color: "#f1f5f9",
-                    padding: "10px 14px",
-                    fontSize: "13.5px",
-                    outline: "none",
-                    width: "100%",
-                    boxSizing: "border-box",
-                    resize: "vertical",
-                  }}
-                />
-              </div>
-
-              <div className="modal-actions" style={{ marginTop: "20px" }}>
-                <button
-                  type="button"
-                  className="btn-modal-cancel"
-                  onClick={() => setEditingIssue(null)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-modal-submit"
-                  disabled={savingEdit}
-                >
-                  {savingEdit ? "Saving..." : "💾 Save Changes"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* =========================================================
-          LEFT SIDEBAR NAVIGATION
-          ========================================================= */}
-      <aside
-        className={`dept-sidebar ${isCollapsed ? "collapsed" : ""} ${
-          isMobileOpen ? "mobile-open" : ""
-        }`}
-      >
-        {/* Brand Header */}
-        <div className="dept-sidebar-brand">
-          <Link to="/" className="sidebar-logo">
-            <span className="sidebar-logo-icon">🏛️</span>
-            {!isCollapsed && (
-              <div className="sidebar-logo-text-group">
-                <span className="sidebar-logo-text">FixMyCity</span>
-                <span className="sidebar-logo-sub" style={{ color: "#38bdf8" }}>
-                  Admin HQ
-                </span>
-              </div>
-            )}
-          </Link>
-          <button
-            className="sidebar-collapse-toggle"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {isCollapsed ? "»" : "«"}
-          </button>
-        </div>
-
-        {/* Scrollable Navigation Sections */}
-        <div className="dept-sidebar-scroll">
-          {/* SECTION 1: ADMIN OPERATIONS SWITCHER */}
-          <div className="dept-nav-group">
-            {!isCollapsed && (
-              <div className="dept-nav-group-title">ADMIN MODULES</div>
-            )}
-
-            <button
-              className={`dept-nav-item ${activeTab === "complaints" ? "active" : ""}`}
-              onClick={() => {
-                setActiveTab("complaints");
-                setDepartmentFilter("All");
-                setStatusFilter("All");
-                setSearchQuery("");
-                setIsMobileOpen(false);
-              }}
-              title="Complaints - View All Complaints"
-            >
-              <span className="nav-item-icon">📋</span>
-              {!isCollapsed && (
-                <span className="nav-item-label">Complaints</span>
-              )}
-            </button>
-
-            <button
-              className={`dept-nav-item ${activeTab === "users" ? "active" : ""}`}
-              onClick={() => {
-                setActiveTab("users");
-                setUserSearchQuery("");
-                setIsMobileOpen(false);
-              }}
-              title="Users - View All Users"
-            >
-              <span className="nav-item-icon">👥</span>
-              {!isCollapsed && (
-                <span className="nav-item-label">Users</span>
-              )}
-            </button>
-
-            <button
-              className={`dept-nav-item ${activeTab === "departments" ? "active" : ""}`}
-              onClick={() => {
-                setActiveTab("departments");
-                setDeptSearchQuery("");
-                setDepartmentsPage(1);
-                setIsMobileOpen(false);
-              }}
-              title="Departments - Manage Departments"
-            >
-              <span className="nav-item-icon">🏢</span>
-              {!isCollapsed && (
-                <span className="nav-item-label">Departments</span>
-              )}
-            </button>
-
-            <button
-              className={`dept-nav-item ${activeTab === "feedbacks" ? "active" : ""}`}
-              onClick={() => {
-                setActiveTab("feedbacks");
-                setFeedbackSearchQuery("");
-                setFeedbackRatingFilter("All");
-                setFeedbackPage(1);
-                setIsMobileOpen(false);
-              }}
-              title="Reviews - Citizen Reviews"
-            >
-              <span className="nav-item-icon">⭐</span>
-              {!isCollapsed && (
-                <span className="nav-item-label">Reviews</span>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Sidebar Footer */}
-        <div className="dept-sidebar-footer">
-          {/* Simplified Admin Badge */}
-          <div
-            className="sidebar-action-btn admin-footer-badge"
-            style={{ cursor: "default" }}
-            title={currentUser?.email || "admin@gmail.com"}
-          >
-            <div
-              className="officer-avatar"
-              style={{
-                width: "28px",
-                height: "28px",
-                fontSize: "13px",
-                fontWeight: "800",
-                borderRadius: "7px",
-                background: "linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(56, 189, 248, 0.05))",
-                borderColor: "rgba(56, 189, 248, 0.4)",
-                color: "#38bdf8",
-                flexShrink: 0,
-              }}
-            >
-              A
-            </div>
-            {!isCollapsed && (
-              <span className="admin-footer-name">
-                Admin
-              </span>
-            )}
-          </div>
-
-          <button
-            className="sidebar-action-btn logout"
-            onClick={handleLogout}
-            title="Sign out"
-          >
-            <span>🚪</span>
-            {!isCollapsed && <span>Logout</span>}
-          </button>
-        </div>
-      </aside>
-
-      {/* =========================================================
-          RIGHT MAIN CONTENT AREA
-          ========================================================= */}
+      {/* Right Main Content Area */}
       <main className="dept-main-content">
-        {/* =========================================================
-            HEADER BAR
-            ========================================================= */}
-        <header className="dept-topbar">
-          <div className="dept-topbar-left">
-            <button
-              className="mobile-hamburger-btn"
-              onClick={() => setIsMobileOpen(!isMobileOpen)}
-              title="Open Navigation"
-            >
-              ☰
-            </button>
-            <div className="dept-header-title-wrap">
-              <h1 className="dept-page-heading">
-                {activeTab === "complaints" ? (
-                  departmentFilter === "Unassigned" ? (
-                    <>
-                      <span>Unassigned Complaints</span>
-                    </>
-                  ) : currentDept ? (
-                    <>
-                      <span>{currentDept.name}</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="accent-text">Complaints</span>
-                    </>
-                  )
-                ) : activeTab === "users" ? (
-                  <>
-                    <span className="accent-text">Users</span>
-                  </>
-                ) : activeTab === "departments" ? (
-                  <>
-                    <span className="accent-text">Departments</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="accent-text">Reviews</span>
-                  </>
-                )}
-              </h1>
-              <p className="dept-page-subheading">
-                {activeTab === "complaints"
-                  ? departmentFilter === "Unassigned"
-                    ? `Complaints pending municipal department assignment • ${complaintStats.total} complaints`
-                    : currentDept
-                    ? `Managing complaints assigned to ${currentDept.name} • ${complaintStats.total} complaints`
-                    : `Central civic grievance repository`
-                  : activeTab === "users"
-                  ? `Platform user directory `
-                  : activeTab === "departments"
-                  ? `Municipal department directory`
-                  : `Citizen satisfaction reviews, service ratings & portal feedback`}
-              </p>
-            </div>
-          </div>
-        </header>
+        {/* Header Bar Component */}
+        <AdminHeader
+          activeTab={activeTab}
+          departmentFilter={departmentFilter}
+          currentDept={currentDept}
+          complaintStats={complaintStats}
+          isMobileOpen={isMobileOpen}
+          setIsMobileOpen={setIsMobileOpen}
+          currentUser={currentUser}
+        />
 
         {/* Content Body */}
         <div className="dept-content-body">
-          {/* =========================================================
-              VIEW CONTENT: COMPLAINTS OPERATIONS TAB
-              ========================================================= */}
           {activeTab === "complaints" && (
-            <>
-              {/* Interactive Metric Cards Strip */}
-              <div className="stats-grid">
-                <div
-                  className={`stat-card ${statusFilter === "All" ? "stat-active" : ""}`}
-                  onClick={() => setStatusFilter("All")}
-                  title="Click to view all complaints"
-                  style={{ cursor: "pointer" }}
-                >
-                  <div className="stat-icon">📊</div>
-                  <div className="stat-info">
-                    <span className="stat-value">{complaintStats.total}</span>
-                    <span className="stat-label">Total Complaints</span>
-                  </div>
-                </div>
-
-                <div
-                  className={`stat-card stat-card-submitted ${
-                    statusFilter === "Submitted" ? "stat-active" : ""
-                  }`}
-                  onClick={() =>
-                    setStatusFilter(statusFilter === "Submitted" ? "All" : "Submitted")
-                  }
-                  title="Click to filter new submitted complaints"
-                  style={{ cursor: "pointer" }}
-                >
-                  <div className="stat-icon">📥</div>
-                  <div className="stat-info">
-                    <span className="stat-value">{complaintStats.submitted}</span>
-                    <span className="stat-label">New Submitted</span>
-                  </div>
-                </div>
-
-                <div
-                  className={`stat-card stat-card-verified ${
-                    statusFilter === "Verified" ? "stat-active" : ""
-                  }`}
-                  onClick={() =>
-                    setStatusFilter(statusFilter === "Verified" ? "All" : "Verified")
-                  }
-                  title="Click to filter verified complaints"
-                  style={{ cursor: "pointer" }}
-                >
-                  <div className="stat-icon">🔍</div>
-                  <div className="stat-info">
-                    <span className="stat-value">{complaintStats.verified}</span>
-                    <span className="stat-label">Verified</span>
-                  </div>
-                </div>
-
-                <div
-                  className={`stat-card stat-card-progress ${
-                    statusFilter === "In Progress" ? "stat-active" : ""
-                  }`}
-                  onClick={() =>
-                    setStatusFilter(
-                      statusFilter === "In Progress" ? "All" : "In Progress"
-                    )
-                  }
-                  title="Click to filter in progress complaints"
-                  style={{ cursor: "pointer" }}
-                >
-                  <div className="stat-icon">⚙️</div>
-                  <div className="stat-info">
-                    <span className="stat-value">{complaintStats.inProgress}</span>
-                    <span className="stat-label">In Progress</span>
-                  </div>
-                </div>
-
-                <div
-                  className={`stat-card stat-card-resolved ${
-                    statusFilter === "Resolved" ? "stat-active" : ""
-                  }`}
-                  onClick={() =>
-                    setStatusFilter(statusFilter === "Resolved" ? "All" : "Resolved")
-                  }
-                  title="Click to filter resolved complaints"
-                  style={{ cursor: "pointer" }}
-                >
-                  <div className="stat-icon">✅</div>
-                  <div className="stat-info">
-                    <span className="stat-value">{complaintStats.resolved}</span>
-                    <span className="stat-label">Resolved</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Complaints Center Filter & Controls Toolbar */}
-              <div className="complaints-center-toolbar">
-                <div className="toolbar-left-controls">
-                  {/* Search Complaints */}
-                  <div className="toolbar-search">
-                    <span className="search-icon">🔍</span>
-                    <input
-                      type="text"
-                      placeholder="Search complaints, ID, category..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                    {searchQuery && (
-                      <button
-                        className="clear-search-btn"
-                        onClick={() => setSearchQuery("")}
-                        title="Clear search"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="toolbar-control-group">
-                    <label className="toolbar-control-label" htmlFor="dept-select-filter">
-                      <span className="toolbar-icon">🏢</span> Department:
-                    </label>
-                    <select
-                      id="dept-select-filter"
-                      className="toolbar-select toolbar-select-dept"
-                      value={departmentFilter}
-                      onChange={(e) => setDepartmentFilter(e.target.value)}
-                      title="Filter complaints by department or unassigned"
-                    >
-                      <option value="All">🌐 All Departments ({issues.length})</option>
-                      <option value="Unassigned">
-                        ⚠️ Unassigned Complaints ({deptIssueCounts.unassigned || 0})
-                      </option>
-                      <optgroup label="Municipal Departments">
-                        {departments.map((dept) => {
-                          const count = deptIssueCounts[String(dept._id)] || 0;
-                          return (
-                            <option key={dept._id} value={String(dept._id)}>
-                              {getDeptIcon(dept.name)} {dept.name} ({count})
-                            </option>
-                          );
-                        })}
-                      </optgroup>
-                    </select>
-                  </div>
-
-                  <div className="toolbar-control-group">
-                    <label className="toolbar-control-label" htmlFor="status-select-filter">
-                      <span className="toolbar-icon">⚡</span> Status:
-                    </label>
-                    <select
-                      id="status-select-filter"
-                      className="toolbar-select toolbar-select-status"
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      title="Filter complaints by workflow status"
-                    >
-                      <option value="All">📊 All Statuses ({issues.length})</option>
-                      <option value="Submitted">📥 Submitted ({complaintStats.submitted})</option>
-                      <option value="Assigned">🏢 Assigned ({complaintStats.assigned})</option>
-                      <option value="Verified">🔍 Verified ({complaintStats.verified})</option>
-                      <option value="In Progress">⚙️ In Progress ({complaintStats.inProgress})</option>
-                      <option value="Resolved">✅ Resolved ({complaintStats.resolved})</option>
-                      <option value="Rejected">❌ Rejected ({complaintStats.rejected})</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="toolbar-right-meta">
-                  {/* Table / Cards View Mode Toggle */}
-                  <div className="view-mode-toggle">
-                    <button
-                      className={`view-toggle-btn ${viewMode === "table" ? "active" : ""}`}
-                      onClick={() => setViewMode("table")}
-                      title="Professional Table View"
-                    >
-                      📋
-                    </button>
-                    <button
-                      className={`view-toggle-btn ${viewMode === "cards" ? "active" : ""}`}
-                      onClick={() => setViewMode("cards")}
-                      title="Executive Card Grid"
-                    >
-                      🗂️ 
-                    </button>
-                  </div>
-
-                  {(departmentFilter !== "All" || statusFilter !== "All" || searchQuery) && (
-                    <button
-                      className="btn-toolbar-reset"
-                      onClick={() => {
-                        setDepartmentFilter("All");
-                        setStatusFilter("All");
-                        setSearchQuery("");
-                      }}
-                      title="Reset all filters to show all complaints"
-                    >
-                      ✕ Reset to All
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Loading State */}
-              {loading && (
-                <div className="dashboard-loading">
-                  <div className="spinner"></div>
-                  <p>Loading civic complaints from database...</p>
-                </div>
-              )}
-
-              {/* Empty State */}
-              {!loading && filteredIssues.length === 0 && (
-                <div className="dashboard-empty">
-                  <div className="empty-icon">📂</div>
-                  <h3>No Complaints Found</h3>
-                  <p>
-                    {issues.length === 0
-                      ? "No civic complaints have been reported yet."
-                      : "No complaints found matching the current search or filters."}
-                  </p>
-                  {(searchQuery || statusFilter !== "All" || departmentFilter !== "All") && (
-                    <button
-                      className="btn-reset-filters"
-                      onClick={() => {
-                        setSearchQuery("");
-                        setStatusFilter("All");
-                        setDepartmentFilter("All");
-                      }}
-                    >
-                      Show All Complaints
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Table View */}
-              {!loading && filteredIssues.length > 0 && viewMode === "table" && (
-                <div className="pro-table-wrapper">
-                  <div className="pro-table-scroll">
-                    <table className="pro-table">
-                      <thead>
-                        <tr>
-                          <th className="col-id">ID</th>
-                          <th className="col-info">Title</th>
-                          <th className="col-dept">Department</th>
-                          <th className="col-date">Reported Date</th>
-                          <th className="col-status">Current Status</th>
-                          <th className="col-action" style={{ textAlign: "center" }}>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {paginatedIssues.map((issue) => {
-                          const assignedDept = departments.find(
-                            (d) =>
-                              d._id ===
-                              (typeof issue.department === "object" && issue.department !== null
-                                ? issue.department._id
-                                : issue.department)
-                          );
-
-                          return (
-                            <tr
-                              key={issue._id}
-                              className={updatingId === issue._id ? "row-updating" : ""}
-                            >
-                              <td>
-                                <span
-                                  className="td-id-chip"
-                                  title="Click to copy ID"
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(issue._id);
-                                    showToast("Complaint ID copied!");
-                                  }}
-                                >
-                                  #{issue._id ? issue._id.slice(-6) : "ID"}
-                                </span>
-                              </td>
-
-                              <td>
-                                <span className="td-issue-title" title={issue.title} style={{ fontSize: "14px", fontWeight: 600, color: "#f8fafc" }}>
-                                  {issue.title}
-                                </span>
-                              </td>
-
-                              <td>
-                                <span className={`dept-badge ${assignedDept ? "assigned" : "unassigned"}`}>
-                                  {assignedDept ? assignedDept.name : "Not Assigned"}
-                                </span>
-                              </td>
-
-                              <td>
-                                <span className="td-meta-date">
-                                  {issue.createdAt
-                                    ? new Date(issue.createdAt).toLocaleDateString(undefined, {
-                                        month: "short",
-                                        day: "numeric",
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                      })
-                                    : "Recent"}
-                                </span>
-                              </td>
-
-                              <td>
-                                <span className={`pro-status-badge ${getStatusClass(issue.status)}`}>
-                                  <span className="status-dot"></span>
-                                  {issue.status || "Submitted"}
-                                </span>
-                              </td>
-
-                              <td className="col-action" style={{ textAlign: "center" }}>
-                                <div className="table-action-icons" style={{ justifyContent: "center" }}>
-                                  <button
-                                    className="action-icon-btn view"
-                                    onClick={() => setViewingIssue(issue)}
-                                    title="View Complaint Details"
-                                  >
-                                    👁️
-                                  </button>
-                                  <button
-                                    className="action-icon-btn edit"
-                                    onClick={() => handleOpenEditModal(issue)}
-                                    title="Edit Complaint"
-                                  >
-                                    ✏️
-                                  </button>
-                                  <button
-                                    className="action-icon-btn delete"
-                                    onClick={() => handleDeleteIssue(issue._id, issue.title)}
-                                    title="Delete Complaint"
-                                  >
-                                    🗑️
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Cards View */}
-              {!loading && filteredIssues.length > 0 && viewMode === "cards" && (
-                <div className="dashboard-cards-grid">
-                  {paginatedIssues.map((issue) => {
-                    const assignedDept = departments.find(
-                      (d) =>
-                        d._id ===
-                        (typeof issue.department === "object" && issue.department !== null
-                          ? issue.department._id
-                          : issue.department)
-                    );
-
-                    return (
-                      <div
-                        className={`dashboard-card ${updatingId === issue._id ? "card-updating" : ""}`}
-                        key={issue._id}
-                      >
-                        <div className="card-top-bar">
-                          <span className="category-pill">
-                            <span className="cat-icon">
-                              {getCategoryIcon(issue.category)}
-                            </span>
-                            {issue.category || "General"}
-                          </span>
-
-                          <div className="card-top-right-group">
-                            <span className={`pro-status-badge ${getStatusClass(issue.status)}`}>
-                              <span className="status-dot"></span>
-                              {issue.status || "Submitted"}
-                            </span>
-                            <span
-                              className="id-chip"
-                              title="Click to copy ID"
-                              onClick={() => {
-                                navigator.clipboard.writeText(issue._id);
-                                showToast("Complaint ID copied!");
-                              }}
-                            >
-                              #{issue._id ? issue._id.slice(-6) : "ID"}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="card-content-area" style={{ margin: "4px 0" }}>
-                          <h2 className="card-title" style={{ fontSize: "16px", marginBottom: "6px" }}>
-                            {issue.title}
-                          </h2>
-                          <p className="card-description" style={{ fontSize: "13px" }}>
-                            {issue.description}
-                          </p>
-                        </div>
-
-                        <div className="card-meta-chips-row">
-                          <span className="meta-chip">
-                            📅 {issue.createdAt
-                              ? new Date(issue.createdAt).toLocaleDateString(undefined, {
-                                  month: "short",
-                                  day: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })
-                              : "Recently"}
-                          </span>
-
-                          {(issue.latitude || issue.longitude) && (
-                            <a
-                              className="meta-chip location-link"
-                              href={`https://www.google.com/maps?q=${issue.latitude},${issue.longitude}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="Open GPS coordinates"
-                            >
-                              📍 {Number(issue.latitude).toFixed(3)}, {Number(issue.longitude).toFixed(3)} ↗
-                            </a>
-                          )}
-
-                          <span className={`meta-chip ${assignedDept ? "assigned" : "unassigned"}`}>
-                            🏢 {assignedDept ? assignedDept.name : "Not Assigned"}
-                          </span>
-                        </div>
-
-                        {(issue.photo || issue.resolvedPhoto) && (
-                          <div className="card-photos-strip">
-                            {issue.photo && (
-                              <div
-                                className="photo-strip-item"
-                                title="Click to view full image"
-                                onClick={() =>
-                                  setLightboxImage({
-                                    url: getPhotoUrl(issue.photo),
-                                    title: issue.title,
-                                    type: "Citizen Photo",
-                                  })
-                                }
-                              >
-                                <img
-                                  src={getPhotoUrl(issue.photo)}
-                                  alt="Citizen reported issue"
-                                />
-                                <span className="photo-strip-tag">📷 Citizen Proof</span>
-                                <span className="photo-strip-zoom-hint">🔍 Expand</span>
-                              </div>
-                            )}
-
-                            {issue.resolvedPhoto && (
-                              <div
-                                className="photo-strip-item"
-                                title="Click to view full image"
-                                onClick={() =>
-                                  setLightboxImage({
-                                    url: getPhotoUrl(issue.resolvedPhoto),
-                                    title: issue.title,
-                                    type: "Completed Work Proof",
-                                  })
-                                }
-                                style={{ borderColor: "#10b981" }}
-                              >
-                                <img
-                                  src={getPhotoUrl(issue.resolvedPhoto)}
-                                  alt="Completed work proof"
-                                />
-                                <span className="photo-strip-tag resolved">✅ Resolved Proof</span>
-                                <span className="photo-strip-zoom-hint">🔍 Expand</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        <div className="card-controls-footer" style={{ paddingTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontSize: "12px", color: "#94a3b8", fontWeight: 600 }}>Actions:</span>
-                          <div className="table-action-icons">
-                            <button
-                              className="action-icon-btn view"
-                              onClick={() => setViewingIssue(issue)}
-                              title="View Complaint Details"
-                            >
-                              👁️
-                            </button>
-                            <button
-                              className="action-icon-btn edit"
-                              onClick={() => handleOpenEditModal(issue)}
-                              title="Edit Complaint"
-                            >
-                              ✏️
-                            </button>
-                            <button
-                              className="action-icon-btn delete"
-                              onClick={() => handleDeleteIssue(issue._id, issue.title)}
-                              title="Delete Complaint"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Complaints Pagination Bar */}
-              {!loading && filteredIssues.length > 0 && (
-                <Pagination
-                  currentPage={complaintsPage}
-                  totalPages={totalComplaintsPages}
-                  totalItems={filteredIssues.length}
-                  pageSize={complaintsPageSize}
-                  onPageChange={setComplaintsPage}
-                  onPageSizeChange={setComplaintsPageSize}
-                  pageSizeOptions={[5, 10, 20]}
-                />
-              )}
-            </>
+            <ComplaintsTab
+              issues={issues}
+              filteredIssues={filteredIssues}
+              paginatedIssues={paginatedIssues}
+              departments={departments}
+              deptIssueCounts={deptIssueCounts}
+              complaintStats={complaintStats}
+              loading={loading}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              statusFilter={statusFilter}
+              setStatusFilter={setStatusFilter}
+              departmentFilter={departmentFilter}
+              setDepartmentFilter={setDepartmentFilter}
+              viewMode={viewMode}
+              setViewMode={setViewMode}
+              complaintsPage={complaintsPage}
+              setComplaintsPage={setComplaintsPage}
+              complaintsPageSize={complaintsPageSize}
+              setComplaintsPageSize={setComplaintsPageSize}
+              totalComplaintsPages={totalComplaintsPages}
+              onViewIssue={setViewingIssue}
+              onEditIssue={handleOpenEditModal}
+              onDeleteIssue={handleDeleteIssue}
+              onInspectPhoto={setLightboxImage}
+              users={users}
+            />
           )}
 
-          {/* =========================================================
-              VIEW CONTENT: MANAGE USERS TAB
-              ========================================================= */}
           {activeTab === "users" && (
-            <>
-              {/* User Metric Cards Strip */}
-              <div className="stats-grid">
-                <div
-                  className="stat-card"
-                  title="Total registered platform citizens"
-                >
-                  <div className="stat-icon">👥</div>
-                  <div className="stat-info">
-                    <span className="stat-value">{userStats.total}</span>
-                    <span className="stat-label">Total Citizens</span>
-                  </div>
-                </div>
-
-                <div
-                  className="stat-card"
-                  title="Active platform citizens"
-                >
-                  <div className="stat-icon">👤</div>
-                  <div className="stat-info">
-                    <span className="stat-value" style={{ color: "#4ade80" }}>{userStats.active}</span>
-                    <span className="stat-label">Active Citizens</span>
-                  </div>
-                </div>
-
-                <div
-                  className="stat-card"
-                  title="Blocked citizens"
-                >
-                  <div className="stat-icon">🚫</div>
-                  <div className="stat-info">
-                    <span className="stat-value" style={{ color: userStats.blocked > 0 ? "#f87171" : "inherit" }}>
-                      {userStats.blocked}
-                    </span>
-                    <span className="stat-label">Blocked Citizens</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Users Toolbar - Top of Table */}
-              <div className="complaints-center-toolbar" style={{ marginTop: "10px" }}>
-                <div className="toolbar-left-controls">
-                  {/* Search Users */}
-                  <div className="toolbar-search">
-                    <span className="search-icon">🔍</span>
-                    <input
-                      type="text"
-                      placeholder="Search users by name, email, role..."
-                      value={userSearchQuery}
-                      onChange={(e) => setUserSearchQuery(e.target.value)}
-                    />
-                    {userSearchQuery && (
-                      <button
-                        className="clear-search-btn"
-                        onClick={() => setUserSearchQuery("")}
-                        title="Clear search"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="toolbar-right-meta">
-                  <div className="view-mode-toggle">
-                    <button
-                      className={`view-toggle-btn ${viewMode === "table" ? "active" : ""}`}
-                      onClick={() => setViewMode("table")}
-                      title="Professional Table View"
-                    >
-                      📋 
-                    </button>
-                    <button
-                      className={`view-toggle-btn ${viewMode === "cards" ? "active" : ""}`}
-                      onClick={() => setViewMode("cards")}
-                      title="Executive Card Grid"
-                    >
-                      🗂️ 
-                    </button>
-                  </div>
-
-                  {userSearchQuery && (
-                    <button
-                      className="btn-toolbar-reset"
-                      onClick={() => setUserSearchQuery("")}
-                      title="Clear search query"
-                    >
-                      ✕ Clear Search
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Loading State */}
-              {loadingUsers && (
-                <div className="dashboard-loading">
-                  <div className="spinner"></div>
-                  <p>Loading platform users...</p>
-                </div>
-              )}
-
-              {/* Empty State */}
-              {!loadingUsers && filteredUsers.length === 0 && (
-                <div className="dashboard-empty">
-                  <div className="empty-icon">👥</div>
-                  <h3>No Citizens Found</h3>
-                  <p>No citizen accounts matched the current search.</p>
-                  {userSearchQuery && (
-                    <button
-                      className="btn-reset-filters"
-                      onClick={() => setUserSearchQuery("")}
-                    >
-                      Show All Citizens
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* =========================================================
-                  USERS: PROFESSIONAL DATA TABLE
-                  ========================================================= */}
-              {!loadingUsers && filteredUsers.length > 0 && viewMode === "table" && (
-                <div className="pro-table-wrapper">
-                  <div className="pro-table-scroll">
-                    <table className="pro-table">
-                      <thead>
-                        <tr>
-                          <th style={{ width: "120px" }}>ID</th>
-                          <th>Name</th>
-                          <th>Email</th>
-                          <th>Created At</th>
-                          <th style={{ textAlign: "center" }}>Block Status</th>
-                          <th style={{ width: "130px", textAlign: "center" }}>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {paginatedUsers.map((u) => {
-                          return (
-                            <tr key={u._id}>
-                              {/* ID */}
-                              <td>
-                                <span
-                                  className="td-id-chip"
-                                  title="Click to copy ID"
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(u._id);
-                                    showToast("User ID copied!");
-                                  }}
-                                >
-                                  #{u._id ? u._id.slice(-6) : "ID"}
-                                </span>
-                              </td>
-
-                              {/* Name */}
-                              <td>
-                                <div className="user-cell-wrap">
-                                  <div className={`user-avatar-circle ${u.isBlocked ? "role-blocked" : "role-user"}`}>
-                                    {u.name ? u.name.charAt(0).toUpperCase() : "U"}
-                                  </div>
-                                  <span className="user-fullname">{u.name || "Unnamed"}</span>
-                                </div>
-                              </td>
-
-                              {/* Email */}
-                              <td>
-                                <span className="user-email-text" style={{ color: "#38bdf8", fontSize: "13.5px" }}>
-                                  {u.email}
-                                </span>
-                              </td>
-
-                              {/* Created At */}
-                              <td>
-                                <span className="td-meta-date">
-                                  {u.createdAt
-                                    ? new Date(u.createdAt).toLocaleDateString(undefined, {
-                                        month: "short",
-                                        day: "numeric",
-                                        year: "numeric",
-                                      })
-                                    : "N/A"}
-                                </span>
-                              </td>
-
-                              {/* Block Status */}
-                              <td style={{ textAlign: "center" }}>
-                                <span
-                                  className={`status-pill ${u.isBlocked ? "status-blocked" : "status-active"}`}
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: "4px",
-                                    padding: "3px 10px",
-                                    borderRadius: "999px",
-                                    fontSize: "11.5px",
-                                    fontWeight: 700,
-                                    background: u.isBlocked ? "rgba(239, 68, 68, 0.15)" : "rgba(34, 197, 94, 0.15)",
-                                    color: u.isBlocked ? "#f87171" : "#4ade80",
-                                    border: `1px solid ${u.isBlocked ? "rgba(239, 68, 68, 0.3)" : "rgba(34, 197, 94, 0.3)"}`,
-                                  }}
-                                >
-                                  {u.isBlocked ? "🔴 Blocked" : "🟢 Active"}
-                                </span>
-                              </td>
-
-                              {/* Actions (View, Block/Unblock, Delete) */}
-                              <td style={{ textAlign: "center" }}>
-                                <div className="table-action-icons" style={{ justifyContent: "center", gap: "6px" }}>
-                                  <button
-                                    className="action-icon-btn view"
-                                    onClick={() => setViewingUser(u)}
-                                    title="View User Details"
-                                  >
-                                    👁️
-                                  </button>
-                                  <button
-                                    className="action-icon-btn"
-                                    onClick={() => handleToggleBlockUser(u)}
-                                    title={u.isBlocked ? "Unblock Citizen" : "Block Citizen"}
-                                    style={{
-                                      background: u.isBlocked ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.15)",
-                                      color: u.isBlocked ? "#4ade80" : "#f87171",
-                                      borderColor: u.isBlocked ? "rgba(34, 197, 94, 0.35)" : "rgba(239, 68, 68, 0.35)",
-                                      fontSize: "12px",
-                                    }}
-                                  >
-                                    {u.isBlocked ? "🔓" : "🚫"}
-                                  </button>
-                                  <button
-                                    className="action-icon-btn delete"
-                                    onClick={() => handleDeleteUser(u._id, u.name)}
-                                    title="Delete User"
-                                  >
-                                    🗑️
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* =========================================================
-                  USERS: CARDS VIEW
-                  ========================================================= */}
-              {!loadingUsers && filteredUsers.length > 0 && viewMode === "cards" && (
-                <div className="dashboard-cards-grid">
-                  {paginatedUsers.map((u) => {
-                    return (
-                      <div className="user-card-pro" key={u._id}>
-                        <div className="user-card-header">
-                          <div className="user-cell-wrap">
-                            <div className={`user-avatar-circle ${u.isBlocked ? "role-blocked" : "role-user"}`}>
-                              {u.name ? u.name.charAt(0).toUpperCase() : "U"}
-                            </div>
-                            <div className="user-info-text">
-                              <span className="user-fullname">{u.name || "Unnamed"}</span>
-                              <span className="user-email-text" style={{ color: "#38bdf8" }}>{u.email}</span>
-                            </div>
-                          </div>
-
-                          <span
-                            className={`status-pill ${u.isBlocked ? "status-blocked" : "status-active"}`}
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "4px",
-                              padding: "3px 8px",
-                              borderRadius: "999px",
-                              fontSize: "11px",
-                              fontWeight: 700,
-                              background: u.isBlocked ? "rgba(239, 68, 68, 0.15)" : "rgba(34, 197, 94, 0.15)",
-                              color: u.isBlocked ? "#f87171" : "#4ade80",
-                              border: `1px solid ${u.isBlocked ? "rgba(239, 68, 68, 0.3)" : "rgba(34, 197, 94, 0.3)"}`,
-                            }}
-                          >
-                            {u.isBlocked ? "🔴 Blocked" : "🟢 Active"}
-                          </span>
-                        </div>
-
-                        <div className="card-content-area" style={{ margin: "10px 0" }}>
-                          <span style={{ fontSize: "12px", color: "#94a3b8" }}>
-                            📅 Created At: {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "N/A"}
-                          </span>
-                        </div>
-
-                        <div className="card-controls-footer" style={{ paddingTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontSize: "12px", color: "#94a3b8", fontWeight: 600 }}>Actions:</span>
-                          <div className="table-action-icons" style={{ gap: "6px" }}>
-                            <button
-                              className="action-icon-btn view"
-                              onClick={() => setViewingUser(u)}
-                              title="View User Details"
-                            >
-                              👁️
-                            </button>
-                            <button
-                              className="action-icon-btn"
-                              onClick={() => handleToggleBlockUser(u)}
-                              title={u.isBlocked ? "Unblock Citizen" : "Block Citizen"}
-                              style={{
-                                background: u.isBlocked ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.15)",
-                                color: u.isBlocked ? "#4ade80" : "#f87171",
-                                borderColor: u.isBlocked ? "rgba(34, 197, 94, 0.35)" : "rgba(239, 68, 68, 0.35)",
-                                fontSize: "12px",
-                              }}
-                            >
-                              {u.isBlocked ? "🔓" : "🚫"}
-                            </button>
-                            <button
-                              className="action-icon-btn delete"
-                              onClick={() => handleDeleteUser(u._id, u.name)}
-                              title="Delete User"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Users Pagination Bar */}
-              {!loadingUsers && filteredUsers.length > 0 && (
-                <Pagination
-                  currentPage={usersPage}
-                  totalPages={totalUsersPages}
-                  totalItems={filteredUsers.length}
-                  pageSize={usersPageSize}
-                  onPageChange={setUsersPage}
-                  onPageSizeChange={setUsersPageSize}
-                  pageSizeOptions={[5, 10, 20]}
-                />
-              )}
-            </>
+            <UsersTab
+              users={users}
+              filteredUsers={filteredUsers}
+              paginatedUsers={paginatedUsers}
+              userStats={userStats}
+              loadingUsers={loadingUsers}
+              userSearchQuery={userSearchQuery}
+              setUserSearchQuery={setUserSearchQuery}
+              viewMode={viewMode}
+              setViewMode={setViewMode}
+              usersPage={usersPage}
+              setUsersPage={setUsersPage}
+              usersPageSize={usersPageSize}
+              setUsersPageSize={setUsersPageSize}
+              totalUsersPages={totalUsersPages}
+              onViewUser={setViewingUser}
+              onToggleBlockUser={handleToggleBlockUser}
+              onDeleteUser={handleDeleteUser}
+            />
           )}
 
-          {/* =========================================================
-              VIEW CONTENT: MANAGE DEPARTMENTS TAB
-              ========================================================= */}
           {activeTab === "departments" && (
-            <>
-              {/* Department Metric Cards Strip */}
-              <div className="stats-grid">
-                <div
-                  className="stat-card"
-                  title="Total registered municipal departments"
-                >
-                  <div className="stat-icon">🏢</div>
-                  <div className="stat-info">
-                    <span className="stat-value">{departments.length}</span>
-                    <span className="stat-label">Total Departments</span>
-                  </div>
-                </div>
-
-                <div
-                  className="stat-card stat-card-verified"
-                  title="Complaints currently assigned to departments"
-                >
-                  <div className="stat-icon">📋</div>
-                  <div className="stat-info">
-                    <span className="stat-value">
-                      {issues.filter((i) => i.department).length}
-                    </span>
-                    <span className="stat-label">Assigned Complaints</span>
-                  </div>
-                </div>
-
-                <div
-                  className="stat-card stat-card-progress"
-                  title="Complaints awaiting department assignment"
-                >
-                  <div className="stat-icon">⚠️</div>
-                  <div className="stat-info">
-                    <span className="stat-value">
-                      {issues.filter((i) => !i.department).length}
-                    </span>
-                    <span className="stat-label">Unassigned Complaints</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Departments Toolbar - Top of Table */}
-              <div className="complaints-center-toolbar" style={{ marginTop: "10px" }}>
-                <div className="toolbar-left-controls">
-                  {/* Search Departments */}
-                  <div className="toolbar-search">
-                    <span className="search-icon">🔍</span>
-                    <input
-                      type="text"
-                      placeholder="Search departments by name or scope..."
-                      value={deptSearchQuery}
-                      onChange={(e) => setDeptSearchQuery(e.target.value)}
-                    />
-                    {deptSearchQuery && (
-                      <button
-                        className="clear-search-btn"
-                        onClick={() => setDeptSearchQuery("")}
-                        title="Clear search"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="toolbar-right-meta">
-                  <div className="view-mode-toggle">
-                    <button
-                      className={`view-toggle-btn ${viewMode === "table" ? "active" : ""}`}
-                      onClick={() => setViewMode("table")}
-                      title="Professional Table View"
-                    >
-                      📋 
-                    </button>
-                    <button
-                      className={`view-toggle-btn ${viewMode === "cards" ? "active" : ""}`}
-                      onClick={() => setViewMode("cards")}
-                      title="Executive Card Grid"
-                    >
-                      🗂️ 
-                    </button>
-                  </div>
-
-                  <button
-                    className="btn-add-user"
-                    onClick={() => setIsCreateDeptModalOpen(true)}
-                    title="Create a new municipal department"
-                  >
-                    ➕ Add Department
-                  </button>
-
-                  {deptSearchQuery && (
-                    <button
-                      className="btn-toolbar-reset"
-                      onClick={() => setDeptSearchQuery("")}
-                      title="Reset search to show all departments"
-                    >
-                      ✕ Reset Search
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Empty State */}
-              {filteredDepartments.length === 0 && (
-                <div className="dashboard-empty">
-                  <div className="empty-icon">🏢</div>
-                  <h3>No Departments Found</h3>
-                  <p>No municipal departments matched your search query.</p>
-                  {deptSearchQuery && (
-                    <button
-                      className="btn-reset-filters"
-                      onClick={() => setDeptSearchQuery("")}
-                    >
-                      Show All Departments
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* =========================================================
-                  DEPARTMENTS: PROFESSIONAL DATA TABLE
-                  ========================================================= */}
-              {filteredDepartments.length > 0 && viewMode === "table" && (
-                <div className="pro-table-wrapper">
-                  <div className="pro-table-scroll">
-                    <table className="pro-table">
-                      <thead>
-                        <tr>
-                          <th style={{ width: "120px" }}>ID</th>
-                          <th>Department Name</th>
-                          <th>Email</th>
-                          <th style={{ width: "160px" }}>Created Date</th>
-                          <th style={{ width: "120px", textAlign: "center" }}>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {paginatedDepartments.map((dept) => {
-                          const deptOfficer = users.find(
-                            (u) =>
-                              u.role === "department" &&
-                              (typeof u.department === "object" && u.department !== null
-                                ? u.department._id
-                                : u.department) === dept._id
-                          );
-
-                          return (
-                            <tr key={dept._id}>
-                              {/* ID */}
-                              <td>
-                                <span
-                                  className="td-id-chip"
-                                  title="Click to copy ID"
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(dept._id);
-                                    showToast("Department ID copied!");
-                                  }}
-                                >
-                                  #{dept._id ? dept._id.slice(-6) : "ID"}
-                                </span>
-                              </td>
-
-                              <td>
-                                <div className="dept-name-cell">
-                                  <div className="dept-name-details">
-                                    <span className="dept-title-text">
-                                      {dept.name}
-                                    </span>
-                                    {deptOfficer?.password && (
-                                      <div className="dept-meta-subrow">
-                                        <span className="dept-email-pill" style={{ color: "#a3e635", borderColor: "rgba(163, 230, 53, 0.3)" }}>
-                                          🔑 {deptOfficer.password}
-                                        </span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </td>
-
-                              <td>
-                                <span style={{ color: "#38bdf8", fontSize: "13.5px", fontWeight: 500 }}>
-                                  {dept.email || "—"}
-                                </span>
-                              </td>
-
-                              <td>
-                                <span className="td-meta-date">
-                                  {dept.createdAt
-                                    ? new Date(dept.createdAt).toLocaleDateString(undefined, {
-                                        month: "short",
-                                        day: "numeric",
-                                        year: "numeric",
-                                      })
-                                    : "Active"}
-                                </span>
-                              </td>
-
-                              <td style={{ textAlign: "center" }}>
-                                <div className="table-action-icons" style={{ justifyContent: "center" }}>
-                                  <button
-                                    className="action-icon-btn view"
-                                    onClick={() => setViewingDept(dept)}
-                                    title="View Department Details"
-                                  >
-                                    👁️
-                                  </button>
-                                  <button
-                                    className="action-icon-btn edit"
-                                    onClick={() => handleOpenEditDept(dept)}
-                                    title="Edit Department"
-                                  >
-                                    ✏️
-                                  </button>
-                                  <button
-                                    className="action-icon-btn delete"
-                                    onClick={() => handleDeleteDept(dept._id, dept.name)}
-                                    title="Delete Department"
-                                  >
-                                    🗑️
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* =========================================================
-                  DEPARTMENTS: CARDS VIEW
-                  ========================================================= */}
-              {filteredDepartments.length > 0 && viewMode === "cards" && (
-                <div className="dashboard-cards-grid">
-                  {paginatedDepartments.map((dept) => {
-                    return (
-                      <div className="dashboard-card" key={dept._id}>
-                        <div className="card-top-bar">
-                          <span className="category-pill" style={{ background: "rgba(168, 85, 247, 0.15)", color: "#c084fc", borderColor: "rgba(168, 85, 247, 0.3)" }}>
-                            {dept.name}
-                          </span>
-                          <span className="id-chip">#{dept._id ? dept._id.slice(-6) : "ID"}</span>
-                        </div>
-
-                        <div className="card-content-area" style={{ margin: "10px 0" }}>
-                          {dept.email && (
-                            <span style={{ fontSize: "11.5px", color: "#38bdf8", fontWeight: 600 }}>
-                              ✉️ {dept.email}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="card-meta-chips-row">
-                          <span className="meta-chip">
-                            📅 {dept.createdAt ? new Date(dept.createdAt).toLocaleDateString() : "Active"}
-                          </span>
-                        </div>
-
-                        <div className="card-controls-footer" style={{ paddingTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontSize: "12px", color: "#94a3b8", fontWeight: 600 }}>Actions:</span>
-                          <div className="table-action-icons">
-                            <button
-                              className="action-icon-btn view"
-                              onClick={() => setViewingDept(dept)}
-                              title="View Department Details"
-                            >
-                              👁️
-                            </button>
-                            <button
-                              className="action-icon-btn edit"
-                              onClick={() => handleOpenEditDept(dept)}
-                              title="Edit Department"
-                            >
-                              ✏️
-                            </button>
-                            <button
-                              className="action-icon-btn delete"
-                              onClick={() => handleDeleteDept(dept._id, dept.name)}
-                              title="Delete Department"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Departments Pagination Bar */}
-              {filteredDepartments.length > 0 && (
-                <Pagination
-                  currentPage={departmentsPage}
-                  totalPages={totalDepartmentsPages}
-                  totalItems={filteredDepartments.length}
-                  pageSize={departmentsPageSize}
-                  onPageChange={setDepartmentsPage}
-                  onPageSizeChange={setDepartmentsPageSize}
-                  pageSizeOptions={[5, 10, 20]}
-                />
-              )}
-            </>
+            <DepartmentsTab
+              departments={departments}
+              filteredDepartments={filteredDepartments}
+              paginatedDepartments={paginatedDepartments}
+              deptSearchQuery={deptSearchQuery}
+              setDeptSearchQuery={setDeptSearchQuery}
+              viewMode={viewMode}
+              setViewMode={setViewMode}
+              departmentsPage={departmentsPage}
+              setDepartmentsPage={setDepartmentsPage}
+              departmentsPageSize={departmentsPageSize}
+              setDepartmentsPageSize={setDepartmentsPageSize}
+              totalDepartmentsPages={totalDepartmentsPages}
+              issues={issues}
+              onOpenCreateDept={() => setIsCreateDeptModalOpen(true)}
+              onViewDept={setViewingDept}
+              onEditDept={handleOpenEditDept}
+              onDeleteDept={handleDeleteDept}
+            />
           )}
 
-          {/* =========================================================
-              FEEDBACKS & REVIEWS TAB
-              ========================================================= */}
           {activeTab === "feedbacks" && (
-            <>
-              {/* Feedback Metric Cards Strip */}
-              <div className="stats-grid">
-                <div
-                  className={`stat-card ${feedbackRatingFilter === "All" ? "stat-active" : ""}`}
-                  onClick={() => {
-                    setFeedbackRatingFilter("All");
-                    setFeedbackPage(1);
-                  }}
-                  style={{ cursor: "pointer" }}
-                  title="Total Citizen Feedbacks"
-                >
-                  <div className="stat-icon">💬</div>
-                  <div className="stat-info">
-                    <span className="stat-value">{feedbackStats.total}</span>
-                    <span className="stat-label">Total Feedbacks</span>
-                  </div>
-                </div>
-
-                <div
-                  className="stat-card"
-                  style={{ borderColor: "rgba(250, 204, 21, 0.35)" }}
-                  title="Overall Average Rating out of 5.0"
-                >
-                  <div className="stat-icon">⭐</div>
-                  <div className="stat-info">
-                    <span className="stat-value" style={{ color: "#facc15" }}>
-                      {feedbackStats.avgRating}{" "}
-                      <span style={{ fontSize: "14px", color: "var(--text-muted)", fontWeight: 500 }}>
-                        / 5.0
-                      </span>
-                    </span>
-                    <span className="stat-label">Average Rating</span>
-                  </div>
-                </div>
-
-                <div
-                  className="stat-card stat-card-verified"
-                  title="Citizen Satisfaction Rate (4 & 5 Star Reviews)"
-                >
-                  <div className="stat-icon">🌟</div>
-                  <div className="stat-info">
-                    <span className="stat-value" style={{ color: "#10b981" }}>
-                      {feedbackStats.satisfactionRate}%
-                    </span>
-                    <span className="stat-label">Satisfaction Rate</span>
-                  </div>
-                </div>
-
-                <div
-                  className={`stat-card ${feedbackRatingFilter === "5" ? "stat-active" : ""}`}
-                  style={{ borderColor: "rgba(56, 189, 248, 0.35)", cursor: "pointer" }}
-                  onClick={() => {
-                    setFeedbackRatingFilter(feedbackRatingFilter === "5" ? "All" : "5");
-                    setFeedbackPage(1);
-                  }}
-                  title="5-Star Ratings"
-                >
-                  <div className="stat-icon">🏆</div>
-                  <div className="stat-info">
-                    <span className="stat-value" style={{ color: "#38bdf8" }}>
-                      {feedbackStats.count5}
-                    </span>
-                    <span className="stat-label">5-Star Reviews</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Feedbacks Toolbar */}
-              <div className="complaints-center-toolbar" style={{ marginTop: "10px" }}>
-                <div className="toolbar-left-controls">
-                  {/* Search Feedbacks */}
-                  <div className="toolbar-search">
-                    <span className="search-icon">🔍</span>
-                    <input
-                      type="text"
-                      placeholder="Search feedbacks by citizen, comment, topic..."
-                      value={feedbackSearchQuery}
-                      onChange={(e) => setFeedbackSearchQuery(e.target.value)}
-                    />
-                    {feedbackSearchQuery && (
-                      <button
-                        className="clear-search-btn"
-                        onClick={() => setFeedbackSearchQuery("")}
-                        title="Clear search"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="toolbar-control-group">
-                    <label className="toolbar-control-label" htmlFor="rating-select-filter">
-                      <span className="toolbar-icon">⭐</span> Rating:
-                    </label>
-                    <select
-                      id="rating-select-filter"
-                      className="toolbar-select"
-                      value={feedbackRatingFilter}
-                      onChange={(e) => {
-                        setFeedbackRatingFilter(e.target.value);
-                        setFeedbackPage(1);
-                      }}
-                      title="Filter by star rating"
-                    >
-                      <option value="All">🌟 All Ratings ({feedbackStats.total})</option>
-                      <option value="5">⭐⭐⭐⭐⭐ 5 Stars ({feedbackStats.count5})</option>
-                      <option value="4">⭐⭐⭐⭐ 4 Stars ({feedbackStats.count4})</option>
-                      <option value="3">⭐⭐⭐ 3 Stars ({feedbackStats.count3})</option>
-                      <option value="2">⭐⭐ 2 Stars ({feedbackStats.count2})</option>
-                      <option value="1">⭐ 1 Star ({feedbackStats.count1})</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="toolbar-right-meta">
-                  <div className="view-mode-toggle">
-                    <button
-                      className={`view-toggle-btn ${viewMode === "table" ? "active" : ""}`}
-                      onClick={() => setViewMode("table")}
-                      title="Professional Table View"
-                    >
-                      📋
-                    </button>
-                    <button
-                      className={`view-toggle-btn ${viewMode === "cards" ? "active" : ""}`}
-                      onClick={() => setViewMode("cards")}
-                      title="Executive Card Grid"
-                    >
-                      🗂️
-                    </button>
-                  </div>
-
-                  {(feedbackRatingFilter !== "All" || feedbackSearchQuery) && (
-                    <button
-                      className="btn-toolbar-reset"
-                      onClick={() => {
-                        setFeedbackRatingFilter("All");
-                        setFeedbackSearchQuery("");
-                        setFeedbackPage(1);
-                      }}
-                      title="Reset all filters"
-                    >
-                      ✕ Reset to All
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Loading State */}
-              {loadingFeedbacks && (
-                <div className="dashboard-loading">
-                  <div className="spinner"></div>
-                  <p>Loading citizen feedback and reviews...</p>
-                </div>
-              )}
-
-              {/* Feedbacks Table View */}
-              {!loadingFeedbacks && filteredFeedbacks.length > 0 && viewMode === "table" && (
-                <div className="pro-table-wrapper">
-                  <div className="pro-table-scroll">
-                    <table className="pro-table">
-                      <thead>
-                        <tr>
-                          <th className="col-fb-user">Citizen</th>
-                          <th className="col-fb-rating">Rating</th>
-                          <th className="col-fb-topic">Category & Topic</th>
-                          <th className="col-fb-comment">Review & Feedback</th>
-                          <th className="col-fb-date">Submitted On</th>
-                          <th className="col-fb-act" style={{ textAlign: "right", paddingRight: "20px" }}>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {paginatedFeedbacks.map((fb) => {
-                          const citizenName = fb.userName || fb.user?.name || "Citizen";
-                          const citizenEmail = fb.user?.email || "No email";
-                          const avatarLetter = citizenName.charAt(0).toUpperCase();
-
-                          return (
-                            <tr key={fb._id}>
-                              <td>
-                                <div className="user-cell-wrap">
-                                  <div
-                                    className="user-avatar-circle"
-                                    style={{
-                                      background: "linear-gradient(135deg, #facc15, #ca8a04)",
-                                      color: "#000",
-                                      fontWeight: 800,
-                                    }}
-                                  >
-                                    {avatarLetter}
-                                  </div>
-                                  <div className="user-info-text">
-                                    <span className="user-fullname">{citizenName}</span>
-                                    <span className="user-email-text">{citizenEmail}</span>
-                                  </div>
-                                </div>
-                              </td>
-
-                              <td>{renderStarRating(fb.rating)}</td>
-
-                              <td>
-                                <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-                                  <span className="fb-category-pill">{fb.category || "Resolution Quality"}</span>
-                                  <span style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 500 }}>
-                                    {fb.issueTitle || "General Portal / City Service"}
-                                  </span>
-                                </div>
-                              </td>
-
-                              <td>
-                                <div className="fb-comment-quote">
-                                  "{fb.comment}"
-                                </div>
-                              </td>
-
-                              <td>
-                                <span className="td-meta-date">
-                                  {fb.createdAt
-                                    ? new Date(fb.createdAt).toLocaleDateString(undefined, {
-                                        month: "short",
-                                        day: "numeric",
-                                        year: "numeric",
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                      })
-                                    : "N/A"}
-                                </span>
-                              </td>
-
-                              <td style={{ textAlign: "right", paddingRight: "20px" }}>
-                                <button
-                                  className="btn-delete-user"
-                                  onClick={() => handleDeleteFeedback(fb._id, citizenName)}
-                                  title="Delete feedback entry"
-                                >
-                                  🗑️ Delete
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Feedbacks Cards View */}
-              {!loadingFeedbacks && filteredFeedbacks.length > 0 && viewMode === "cards" && (
-                <div className="dashboard-cards-grid">
-                  {paginatedFeedbacks.map((fb) => {
-                    const citizenName = fb.userName || fb.user?.name || "Citizen";
-                    const citizenEmail = fb.user?.email || "No email";
-                    const avatarLetter = citizenName.charAt(0).toUpperCase();
-
-                    return (
-                      <div className="fb-card-pro" key={fb._id}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px" }}>
-                          <div className="user-cell-wrap">
-                            <div
-                              className="user-avatar-circle"
-                              style={{
-                                background: "linear-gradient(135deg, #facc15, #ca8a04)",
-                                color: "#000",
-                                fontWeight: 800,
-                              }}
-                            >
-                              {avatarLetter}
-                            </div>
-                            <div className="user-info-text">
-                              <span className="user-fullname">{citizenName}</span>
-                              <span className="user-email-text">{citizenEmail}</span>
-                            </div>
-                          </div>
-                          {renderStarRating(fb.rating)}
-                        </div>
-
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                          <span className="fb-category-pill">{fb.category || "Resolution Quality"}</span>
-                          <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                            • {fb.issueTitle || "General Portal / City Service"}
-                          </span>
-                        </div>
-
-                        <div className="fb-comment-quote">
-                          "{fb.comment}"
-                        </div>
-
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            borderTop: "1px solid rgba(255,255,255,0.06)",
-                            paddingTop: "12px",
-                            marginTop: "4px",
-                          }}
-                        >
-                          <span className="td-meta-date">
-                            {fb.createdAt
-                              ? new Date(fb.createdAt).toLocaleDateString(undefined, {
-                                  month: "short",
-                                  day: "numeric",
-                                  year: "numeric",
-                                })
-                              : "N/A"}
-                          </span>
-                          <button
-                            className="btn-delete-user"
-                            onClick={() => handleDeleteFeedback(fb._id, citizenName)}
-                            title="Delete feedback entry"
-                          >
-                            🗑️ Delete
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Empty State */}
-              {!loadingFeedbacks && filteredFeedbacks.length === 0 && (
-                <div className="no-issues-placeholder">
-                  <div className="empty-state-icon">⭐</div>
-                  <h3>No Citizen Feedback Found</h3>
-                  <p>
-                    {feedbackSearchQuery || feedbackRatingFilter !== "All"
-                      ? "No reviews match your current filters. Try resetting the filter or search query."
-                      : "No citizens have submitted feedback or reviews yet."}
-                  </p>
-                  {(feedbackSearchQuery || feedbackRatingFilter !== "All") && (
-                    <button
-                      className="btn-reset-filters"
-                      onClick={() => {
-                        setFeedbackSearchQuery("");
-                        setFeedbackRatingFilter("All");
-                        setFeedbackPage(1);
-                      }}
-                      style={{ marginTop: "12px" }}
-                    >
-                      Reset Filters
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Feedbacks Pagination */}
-              {filteredFeedbacks.length > 0 && (
-                <Pagination
-                  currentPage={feedbackPage}
-                  totalPages={feedbackTotalPages}
-                  totalItems={filteredFeedbacks.length}
-                  pageSize={feedbackPageSize}
-                  onPageChange={setFeedbackPage}
-                  onPageSizeChange={setFeedbackPageSize}
-                  pageSizeOptions={[6, 12, 24]}
-                />
-              )}
-            </>
+            <FeedbacksTab
+              feedbacks={feedbacks}
+              filteredFeedbacks={filteredFeedbacks}
+              paginatedFeedbacks={paginatedFeedbacks}
+              feedbackStats={feedbackStats}
+              loadingFeedbacks={loadingFeedbacks}
+              feedbackSearchQuery={feedbackSearchQuery}
+              setFeedbackSearchQuery={setFeedbackSearchQuery}
+              feedbackPage={feedbackPage}
+              setFeedbackPage={setFeedbackPage}
+              feedbackPageSize={feedbackPageSize}
+              setFeedbackPageSize={setFeedbackPageSize}
+              feedbackTotalPages={feedbackTotalPages}
+              onDeleteFeedback={handleDeleteFeedback}
+            />
           )}
         </div>
       </main>

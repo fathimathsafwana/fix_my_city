@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { useToast } from "../context/useToast";
 import { API_BASE_URL } from "../config";
+import { getCurrentUser } from "../utils/auth";
 
 function CitizenProfile() {
   const { showToast } = useToast();
@@ -16,17 +17,12 @@ function CitizenProfile() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const savedUser = localStorage.getItem("user");
-      if (savedUser) {
-        const parsed = JSON.parse(savedUser);
-        setUser(parsed);
-        setName(parsed.name || "");
-        fetchUserProfile(parsed.id || parsed._id);
-      } else {
-        navigate("/login");
-      }
-    } catch {
+    const savedUser = getCurrentUser();
+    if (savedUser) {
+      setUser(savedUser);
+      setName(savedUser.name || "");
+      fetchUserProfile(savedUser.id || savedUser._id);
+    } else {
       navigate("/login");
     }
   }, [navigate]);
@@ -100,12 +96,6 @@ function CitizenProfile() {
     }
   };
 
-  const getRoleLabel = (role) => {
-    if (role === "admin") return "🛡️ Master Administrator";
-    if (role === "department") return "🏢 Department Officer";
-    return "👤 Citizen Reporter";
-  };
-
   return (
     <div className="profile-page">
       <Navbar />
@@ -117,19 +107,10 @@ function CitizenProfile() {
           <div className="profile-focused-header">
             <div className="profile-focused-avatar">
               {user?.name ? user.name.charAt(0).toUpperCase() : "C"}
-              <span className="profile-online-badge" title="Active Account" />
             </div>
 
             <h1 className="profile-focused-name">{user?.name || "Citizen"}</h1>
 
-            <div className="profile-focused-badges">
-              <span className="profile-role-pill">
-                {getRoleLabel(user?.role)}
-              </span>
-              <span className="profile-status-pill">
-                ● Active
-              </span>
-            </div>
 
             <p className="profile-focused-email">✉️ {user?.email}</p>
           </div>
@@ -173,17 +154,6 @@ function CitizenProfile() {
                     />
               
                   </div>
-                </div>
-
-                {/* Account Role */}
-                <div className="profile-form-group">
-                  <label>Account Role</label>
-                  <input
-                    type="text"
-                    value={getRoleLabel(user?.role)}
-                    disabled
-                    style={{ opacity: 0.75, cursor: "not-allowed" }}
-                  />
                 </div>
 
                 {/* Password Change Divider */}

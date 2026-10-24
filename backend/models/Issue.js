@@ -9,22 +9,26 @@ const issueSchema = new mongoose.Schema(
 
     category: {
       type: String,
-      required: true,
+      required: false,
+      default: "General",
     },
 
     description: {
       type: String,
-      required: true,
+      required: false,
+      default: "",
     },
 
     latitude: {
       type: Number,
-      required: true,
+      required: false,
+      default: 0,
     },
 
     longitude: {
       type: Number,
-      required: true,
+      required: false,
+      default: 0,
     },
     photo: {
       type: String,
@@ -37,8 +41,8 @@ const issueSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["Submitted", "Verified", "Assigned", "In Progress", "Resolved", "Rejected"],
-      default: "Submitted",
+      enum: ["Pending", "Verified", "In Progress", "Resolved", "Rejected", "Submitted", "Assigned"],
+      default: "Pending",
     },
     department: {
       type: mongoose.Schema.Types.ObjectId,

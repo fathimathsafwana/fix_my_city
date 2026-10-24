@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { API_BASE_URL } from "../config";
 
@@ -98,21 +98,7 @@ function Register() {
               type="email"
               placeholder="Enter your email"
               value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-
-                if (!e.target.value.includes("@")) {
-                  e.target.setCustomValidity(
-                    "Please include an '@' in the email address."
-                  );
-                } else if (!e.target.value.endsWith(".com")) {
-                  e.target.setCustomValidity(
-                    "Please include '.com' in the email address."
-                  );
-                } else {
-                  e.target.setCustomValidity("");
-                }
-              }}
+              onChange={(e) => setEmail(e.target.value)}
               autoComplete="off"
               required
             />
@@ -223,7 +209,7 @@ function Register() {
 
         <p className="register-text">
           Already have an account?{" "}
-          <a href="/login">Login</a>
+          <Link to="/login">Login</Link>
         </p>
 
       </div>
