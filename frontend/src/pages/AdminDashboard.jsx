@@ -68,16 +68,6 @@ function AdminDashboard() {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [viewingUser, setViewingUser] = useState(null);
-  const [editingUser, setEditingUser] = useState(null);
-  const [editUserData, setEditUserData] = useState({
-    name: "",
-    email: "",
-    role: "user",
-    department: "",
-    password: "",
-  });
-  const [savingUser, setSavingUser] = useState(false);
-  const [showEditUserPassword, setShowEditUserPassword] = useState(false);
 
   // Users Pagination
   const [usersPage, setUsersPage] = useState(1);
@@ -545,70 +535,6 @@ function AdminDashboard() {
       showToast(`User updated successfully!`, "success");
     } catch (err) {
       showToast(err.message || "Failed to update user.", "error");
-    }
-  };
-
-  const handleOpenEditUser = (user) => {
-    setEditingUser(user);
-    setShowEditUserPassword(false);
-    setEditUserData({
-      name: user.name || "",
-      email: user.email || "",
-      role: user.role || "user",
-      department:
-        typeof user.department === "object" && user.department !== null
-          ? user.department._id
-          : user.department || "",
-      password: "",
-    });
-  };
-
-  const handleSaveEditUser = async (e) => {
-    e.preventDefault();
-    if (!editingUser) return;
-    if (!editUserData.name.trim()) {
-      showToast("Please enter user name.", "error");
-      return;
-    }
-
-    setSavingUser(true);
-    try {
-      const payload = {
-        name: editUserData.name.trim(),
-        role: editUserData.role,
-        department:
-          editUserData.role === "department"
-            ? editUserData.department || null
-            : null,
-      };
-      if (editUserData.password.trim()) {
-        payload.password = editUserData.password.trim();
-      }
-
-      const response = await fetch(`${API_BASE_URL}/api/users/${editingUser._id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to update user.");
-      }
-
-      setUsers((prev) =>
-        prev.map((u) => (u._id === editingUser._id ? data.user : u))
-      );
-      showToast(`User "${data.user.name}" updated successfully!`, "success");
-      setEditingUser(null);
-      fetchUsers();
-    } catch (err) {
-      showToast(err.message || "Failed to update user.", "error");
-    } finally {
-      setSavingUser(false);
     }
   };
 
@@ -1103,17 +1029,6 @@ function AdminDashboard() {
                 <div style={{ display: "flex", gap: "10px" }}>
                   <button
                     type="button"
-                    className="btn-modal-cancel"
-                    onClick={() => {
-                      const userToEdit = viewingUser;
-                      setViewingUser(null);
-                      handleOpenEditUser(userToEdit);
-                    }}
-                  >
-                    ✏️ Edit User
-                  </button>
-                  <button
-                    type="button"
                     className="btn-modal-submit"
                     onClick={() => setViewingUser(null)}
                   >
@@ -1122,140 +1037,6 @@ function AdminDashboard() {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit User Modal */}
-      {editingUser && (
-        <div className="modal-overlay" onClick={() => setEditingUser(null)}>
-          <div
-            className="modal-dialog"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: "480px" }}
-          >
-            <div className="modal-header">
-              <h2 className="modal-title">✏️ Edit User Account</h2>
-              <button
-                className="modal-close-btn"
-                onClick={() => setEditingUser(null)}
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveEditUser} className="modal-form">
-              <div className="modal-form-group">
-                <label>Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={editUserData.name}
-                  onChange={(e) =>
-                    setEditUserData({ ...editUserData, name: e.target.value })
-                  }
-                  placeholder="e.g. John Doe"
-                />
-              </div>
-
-              <div className="modal-form-group">
-                <label>Email Address</label>
-                <input
-                  type="email"
-                  disabled
-                  style={{ opacity: 0.65, cursor: "not-allowed" }}
-                  value={editUserData.email}
-                  title="Email cannot be changed"
-                />
-                <span style={{ fontSize: "11px", color: "#94a3b8", marginTop: "3px", display: "block" }}>
-                  User email is fixed as the unique login credential.
-                </span>
-              </div>
-
-              <div className="modal-form-group">
-                <label>Account Role *</label>
-                <select
-                  value={editUserData.role}
-                  onChange={(e) =>
-                    setEditUserData({ ...editUserData, role: e.target.value })
-                  }
-                >
-                  <option value="user">👤 Citizen</option>
-                  <option value="admin">🛡️ City Administrator</option>
-                  <option value="department">🏢 Department Officer</option>
-                </select>
-              </div>
-
-              {editUserData.role === "department" && (
-                <div className="modal-form-group">
-                  <label>Assign Department *</label>
-                  <select
-                    value={editUserData.department}
-                    required={editUserData.role === "department"}
-                    onChange={(e) =>
-                      setEditUserData({ ...editUserData, department: e.target.value })
-                    }
-                  >
-                    <option value="">-- Select Department --</option>
-                    {departments.map((dept) => (
-                      <option key={dept._id} value={dept._id}>
-                        {dept.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div className="modal-form-group">
-                <label>Reset Password (leave blank to keep current)</label>
-                <div style={{ position: "relative" }}>
-                  <input
-                    type={showEditUserPassword ? "text" : "password"}
-                    placeholder="Enter new password (optional)"
-                    style={{ width: "100%", paddingRight: "45px" }}
-                    value={editUserData.password}
-                    onChange={(e) =>
-                      setEditUserData({ ...editUserData, password: e.target.value })
-                    }
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowEditUserPassword(!showEditUserPassword)}
-                    style={{
-                      position: "absolute",
-                      right: "10px",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      border: "none",
-                      background: "none",
-                      cursor: "pointer",
-                      fontSize: "18px",
-                      padding: 0,
-                    }}
-                    title={showEditUserPassword ? "Hide password" : "Show password"}
-                  >
-                    {showEditUserPassword ? "🙈" : "👁️"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  className="btn-modal-cancel"
-                  onClick={() => setEditingUser(null)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-modal-submit"
-                  disabled={savingUser}
-                >
-                  {savingUser ? "Saving..." : "Save Changes"}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}
@@ -2925,7 +2706,7 @@ function AdminDashboard() {
                                 </span>
                               </td>
 
-                              {/* Actions (View, Edit, Delete) */}
+                              {/* Actions (View, Delete) */}
                               <td style={{ textAlign: "center" }}>
                                 <div className="table-action-icons" style={{ justifyContent: "center" }}>
                                   <button
@@ -2934,13 +2715,6 @@ function AdminDashboard() {
                                     title="View User Details"
                                   >
                                     👁️
-                                  </button>
-                                  <button
-                                    className="action-icon-btn edit"
-                                    onClick={() => handleOpenEditUser(u)}
-                                    title="Edit User"
-                                  >
-                                    ✏️
                                   </button>
                                   <button
                                     className="action-icon-btn delete"
@@ -2995,13 +2769,6 @@ function AdminDashboard() {
                               title="View User Details"
                             >
                               👁️
-                            </button>
-                            <button
-                              className="action-icon-btn edit"
-                              onClick={() => handleOpenEditUser(u)}
-                              title="Edit User"
-                            >
-                              ✏️
                             </button>
                             <button
                               className="action-icon-btn delete"
