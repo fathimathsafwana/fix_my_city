@@ -539,14 +539,7 @@ function AdminDashboard() {
   };
 
   const handleToggleBlockUser = async (user) => {
-    const actionWord = user.isBlocked ? "unblock" : "block";
-    if (
-      !window.confirm(
-        `Are you sure you want to ${actionWord} citizen "${user.name}"?`
-      )
-    ) {
-      return;
-    }
+    const nextStatus = !user.isBlocked;
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/users/${user._id}/block`, {
@@ -555,17 +548,25 @@ function AdminDashboard() {
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || `Failed to ${actionWord} user.`);
+      if (!response.ok) {
+        throw new Error(data.message || `Failed to ${nextStatus ? "block" : "unblock"} user.`);
+      }
 
       setUsers((prev) =>
-        prev.map((u) => (u._id === user._id ? { ...u, isBlocked: !u.isBlocked } : u))
+        prev.map((u) => (u._id === user._id ? { ...u, isBlocked: nextStatus } : u))
       );
       if (viewingUser && viewingUser._id === user._id) {
-        setViewingUser((prev) => ({ ...prev, isBlocked: !prev.isBlocked }));
+        setViewingUser((prev) => ({ ...prev, isBlocked: nextStatus }));
       }
-      showToast(data.message || `User ${actionWord}ed successfully!`, "success");
+
+      showToast(
+        nextStatus
+          ? `Citizen "${user.name}" has been blocked.`
+          : `Citizen "${user.name}" has been unblocked.`,
+        nextStatus ? "warning" : "success"
+      );
     } catch (err) {
-      showToast(err.message || `Failed to ${actionWord} user.`, "error");
+      showToast(err.message || `Failed to update citizen block status.`, "error");
     }
   };
 
