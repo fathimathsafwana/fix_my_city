@@ -931,6 +931,10 @@ app.delete("/api/users/:id", async (req, res) => {
     });
   }
 });
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Backend server running on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== "test" && !process.env.VERCEL) {
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Backend server running on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
