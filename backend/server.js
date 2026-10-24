@@ -335,6 +335,13 @@ app.put("/api/issues/:id", async (req, res) => {
     if (department !== undefined) issue.department = department || null;
     if (priority !== undefined) issue.priority = priority;
 
+    // Keep status and department assignment consistent
+    if (issue.department && issue.status === "Submitted") {
+      issue.status = "Assigned";
+    } else if (!issue.department && issue.status === "Assigned") {
+      issue.status = "Submitted";
+    }
+
     const updated = await issue.save();
     const populated = await Issue.findById(updated._id).populate("department");
     res.status(200).json({
