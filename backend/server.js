@@ -45,29 +45,14 @@ const uploadToCloudinary = (fileBuffer, folder = "fixmycity") => {
 
 const allowedOrigins = [
   "https://fix-my-city-bs3z.vercel.app",
-  "https://fix-my-city-bs3z.vercel.app/",
   "http://localhost:5173",
-  "http://localhost:3000",
-  "http://127.0.0.1:5173",
 ];
 
 const app = express();
 app.use(
   cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
-      const cleanOrigin = origin.replace(/\/$/, "");
-      const isAllowed = allowedOrigins.some(
-        (o) => o.replace(/\/$/, "") === cleanOrigin
-      );
-      if (isAllowed || origin.endsWith(".vercel.app")) {
-        return callback(null, true);
-      }
-      return callback(null, true);
-    },
+    origin: allowedOrigins,
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "user-id"],
   })
 );
 app.use(express.json());
