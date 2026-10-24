@@ -93,6 +93,15 @@ function Navbar() {
                 >
                   Track Complaints
                 </NavLink>
+
+                <NavLink
+                  to="/feedback"
+                  className={({ isActive }) =>
+                    isActive ? "nav-link active" : "nav-link"
+                  }
+                >
+                  Feedback
+                </NavLink>
               </>
             )}
 
@@ -110,14 +119,26 @@ function Navbar() {
 
             {/* Department Features */}
             {user.role === "department" && (
-              <NavLink
-                to="/department"
-                className={({ isActive }) =>
-                  isActive ? "nav-link active" : "nav-link"
-                }
-              >
-                Department Dashboard
-              </NavLink>
+              <>
+                <NavLink
+                  to="/"
+                  className={({ isActive }) =>
+                    isActive ? "nav-link active" : "nav-link"
+                  }
+                  end
+                >
+                  Home
+                </NavLink>
+
+                <NavLink
+                  to="/department"
+                  className={({ isActive }) =>
+                    isActive ? "nav-link active" : "nav-link"
+                  }
+                >
+                  Department Dashboard
+                </NavLink>
+              </>
             )}
           </div>
 

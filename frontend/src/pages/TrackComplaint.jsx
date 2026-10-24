@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { useToast } from "../context/useToast";
 
@@ -16,6 +16,7 @@ const CATEGORIES = [
     "Sanitation & Waste Management",
     "Roads & Infrastructure",
     "Water Supply & Drainage",
+    "Public Safety",
     "General Civic Grievance",
 ];
 
@@ -43,10 +44,14 @@ function TrackComplaint() {
 
     useEffect(() => {
         let headers = {};
+        let currentUser = null;
         try {
-            const user = JSON.parse(localStorage.getItem("user") || "null");
-            if (user && user.id) {
-                headers["user-id"] = user.id;
+            currentUser = JSON.parse(localStorage.getItem("user") || "null");
+            if (currentUser) {
+                const uid = currentUser.id || currentUser._id;
+                if (uid) {
+                    headers["user-id"] = uid;
+                }
             }
         } catch {
             // ignore
@@ -63,7 +68,17 @@ function TrackComplaint() {
             }).catch(() => []),
         ])
             .then(([issuesData, deptsData]) => {
-                const list = Array.isArray(issuesData) ? issuesData : [];
+                let list = Array.isArray(issuesData) ? issuesData : [];
+
+                // Normal users only see their own complaints
+                if (currentUser && currentUser.role !== "admin" && currentUser.role !== "department") {
+                    const currentUserId = String(currentUser.id || currentUser._id || "");
+                    list = list.filter((item) => {
+                        const itemUserId = item.user?._id || item.user;
+                        return itemUserId && String(itemUserId) === currentUserId;
+                    });
+                }
+
                 setAllIssues(list);
                 setDepartments(Array.isArray(deptsData) ? deptsData : []);
 
@@ -156,6 +171,7 @@ function TrackComplaint() {
         if (lower.includes("garbage") || lower.includes("waste") || lower.includes("sanitat")) return "🗑️";
         if (lower.includes("water") || lower.includes("supply")) return "🚰";
         if (lower.includes("drainage") || lower.includes("sewage")) return "🌊";
+        if (lower.includes("safety") || lower.includes("public")) return "🚨";
         return "📍";
     };
 
@@ -273,7 +289,18 @@ function TrackComplaint() {
             {error && <p className="error-message">{error}</p>}
 
             {!loading && !error && issues.length === 0 && (
-                <p>No complaints found.</p>
+                <div style={{ textAlign: "center", padding: "48px 20px" }}>
+                    <p style={{ fontSize: "16px", color: "var(--text-secondary)", marginBottom: "16px" }}>
+                        You have not reported any civic issues yet.
+                    </p>
+                    <Link
+                        to="/report"
+                        className="btn-track-issue"
+                        style={{ display: "inline-block", textDecoration: "none" }}
+                    >
+                        ➕ Report a Civic Issue
+                    </Link>
+                </div>
             )}
 
             {!loading && issues.length > 0 && (

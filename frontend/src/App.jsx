@@ -9,6 +9,7 @@ import TrackComplaint from "./pages/TrackComplaint";
 import AdminDashboard from "./pages/AdminDashboard";
 import DepartmentDashboard from "./pages/DepartmentDashboard";
 import CitizenProfile from "./pages/CitizenProfile";
+import Feedback from "./pages/Feedback";
 import { useState, useEffect } from "react";
 
 function Home() {
@@ -31,18 +32,30 @@ function Home() {
       {/* Hero Section */}
       <section className="hero-section">
         <div className="content">
-          <div className="portal-badge">🏛️ Municipal Citizen Portal</div>
+          <div className="portal-badge">
+            {user?.role === "department"
+              ? user?.department?.name
+                ? `🏢 ${user.department.name} Portal`
+                : "🏢 Municipal Operations Portal"
+              : user?.role === "admin"
+              ? "🛡️ Master Administrative Portal"
+              : "🏛️ Municipal Citizen Portal"}
+          </div>
 
           <h1 className="title">
             <span className="portal-brand-highlight">FixMyCity</span>
           </h1>
 
           <p className="portal-subheading">
-            Smart Civic Issue Reporting & Resolution Portal
+            {user?.role === "department"
+              ? `Welcome, ${user.name || "Department Officer"}`
+              : "Smart Civic Issue Reporting & Resolution Portal"}
           </p>
 
           <p className="description">
-            FixMyCity empowers citizens to report civic grievances like broken street lights, potholes, garbage overflows, and water supply issues directly to municipal departments with real-time GPS tracking.
+            {user?.role === "department"
+              ? "FixMyCity Operations allows official department staff to monitor, inspect, and resolve civic complaints reported by citizens across the municipality with verified photo proof."
+              : "FixMyCity empowers citizens to report civic grievances like broken street lights, potholes, garbage overflows, and water supply issues directly to municipal departments with real-time GPS tracking."}
           </p>
 
           <div className="button-group">
@@ -171,6 +184,16 @@ function App() {
         element={
           <ProtectedRoute allowedRoles={["user", "admin", "department"]}>
             <TrackComplaint />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Citizen Feedback & Rating Route */}
+      <Route
+        path="/feedback"
+        element={
+          <ProtectedRoute allowedRoles={["user", "admin", "department"]}>
+            <Feedback />
           </ProtectedRoute>
         }
       />

@@ -50,6 +50,22 @@ const issueSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+    feedback: {
+      rating: {
+        type: Number,
+        min: 1,
+        max: 5,
+        default: null,
+      },
+      comment: {
+        type: String,
+        default: "",
+      },
+      submittedAt: {
+        type: Date,
+        default: null,
+      },
+    },
   },
   {
     timestamps: true,

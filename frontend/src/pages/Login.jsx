@@ -41,9 +41,9 @@ function Login() {
       if (data.user.role === "admin") {
         navigate("/admin");
       } else if (data.user.role === "department") {
-        navigate("/department");
+        navigate("/");
       } else {
-        navigate("/report");
+        navigate("/");
       }
     } catch (error) {
       console.error(error);

@@ -66,7 +66,6 @@ function AdminDashboard() {
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [userSearchQuery, setUserSearchQuery] = useState("");
-  const [userRoleFilter, setUserRoleFilter] = useState("All");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
 
@@ -79,6 +78,14 @@ function AdminDashboard() {
     password: "",
     role: "user",
   });
+
+  // Feedbacks & Reviews States
+  const [feedbacks, setFeedbacks] = useState([]);
+  const [loadingFeedbacks, setLoadingFeedbacks] = useState(false);
+  const [feedbackRatingFilter, setFeedbackRatingFilter] = useState("All");
+  const [feedbackSearchQuery, setFeedbackSearchQuery] = useState("");
+  const [feedbackPage, setFeedbackPage] = useState(1);
+  const [feedbackPageSize, setFeedbackPageSize] = useState(6);
 
   // View Mode: 'table' vs 'cards'
   const [viewMode, setViewMode] = useState("table");
@@ -105,17 +112,11 @@ function AdminDashboard() {
     navigate("/login");
   };
 
-  useEffect(() => {
-    fetchIssues();
-    fetchDepartments();
-    fetchUsers();
-  }, []);
-
   const getAuthHeaders = () => {
     try {
       const user = JSON.parse(localStorage.getItem("user") || "null");
-      if (user && user.id) {
-        return { "user-id": user.id };
+      if (user && (user.id || user._id)) {
+        return { "user-id": user.id || user._id };
       }
     } catch {
       // ignore
@@ -166,6 +167,29 @@ function AdminDashboard() {
         setLoadingUsers(false);
       });
   };
+
+  const fetchFeedbacks = async () => {
+    setLoadingFeedbacks(true);
+    try {
+      const response = await fetch("http://localhost:5000/api/feedback", {
+        headers: getAuthHeaders(),
+      });
+      if (!response.ok) throw new Error("Failed to fetch feedback.");
+      const data = await response.json();
+      setFeedbacks(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to load feedback:", err);
+    } finally {
+      setLoadingFeedbacks(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchIssues();
+    fetchDepartments();
+    fetchUsers();
+    fetchFeedbacks();
+  }, []);
 
   // Complaint handlers
   const handleStatusChange = async (issueId, newStatus) => {
@@ -535,6 +559,28 @@ function AdminDashboard() {
     }
   };
 
+  const handleDeleteFeedback = async (id, citizenName) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to delete this feedback from "${citizenName}"? This action cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    try {
+      const response = await fetch(`http://localhost:5000/api/feedback/${id}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Failed to delete feedback.");
+      setFeedbacks((prev) => prev.filter((f) => f._id !== id));
+      showToast("Citizen feedback deleted successfully.", "info");
+    } catch (err) {
+      showToast(err.message || "Failed to delete feedback.", "error");
+    }
+  };
+
   // Complaint counts & filtering
   const deptIssueCounts = useMemo(() => {
     const counts = { unassigned: 0 };
@@ -614,31 +660,27 @@ function AdminDashboard() {
     };
   }, [issues, departmentFilter]);
 
-  // User Stats & Filtering
+  // User Stats & Filtering (Citizens only; Admin & Department accounts managed separately)
   const userStats = useMemo(() => {
-    const manageableUsers = users.filter((u) => u.role !== "department");
+    const manageableUsers = users.filter((u) => u.role !== "department" && u.role !== "admin");
     return {
       total: manageableUsers.length,
       citizens: manageableUsers.filter((u) => u.role === "user").length,
-      admins: manageableUsers.filter((u) => u.role === "admin").length,
     };
   }, [users]);
 
   const filteredUsers = useMemo(() => {
-    return users.filter((u) => u.role !== "department").filter((u) => {
-      const matchesRole =
-        userRoleFilter === "All" || u.role === userRoleFilter;
-
-      const query = userSearchQuery.toLowerCase();
-      const matchesSearch =
-        query === "" ||
-        u.name?.toLowerCase().includes(query) ||
-        u.email?.toLowerCase().includes(query) ||
-        u.role?.toLowerCase().includes(query);
-
-      return matchesRole && matchesSearch;
-    });
-  }, [users, userRoleFilter, userSearchQuery]);
+    return users
+      .filter((u) => u.role !== "department" && u.role !== "admin")
+      .filter((u) => {
+        const query = userSearchQuery.toLowerCase();
+        return (
+          query === "" ||
+          u.name?.toLowerCase().includes(query) ||
+          u.email?.toLowerCase().includes(query)
+        );
+      });
+  }, [users, userSearchQuery]);
 
   // Reset pagination when filters change
   useEffect(() => {
@@ -647,7 +689,7 @@ function AdminDashboard() {
 
   useEffect(() => {
     setUsersPage(1);
-  }, [userRoleFilter, userSearchQuery]);
+  }, [userSearchQuery]);
 
   // Paginated Complaints
   const totalComplaintsPages = Math.ceil(filteredIssues.length / complaintsPageSize) || 1;
@@ -694,6 +736,7 @@ function AdminDashboard() {
     if (lower.includes("garbage") || lower.includes("waste")) return "🗑️";
     if (lower.includes("water")) return "🚰";
     if (lower.includes("drainage")) return "🌊";
+    if (lower.includes("safety") || lower.includes("public")) return "🚨";
     return "📍";
   };
 
@@ -717,6 +760,87 @@ function AdminDashboard() {
       return path;
     }
     return `http://localhost:5000${path}`;
+  };
+
+  // Feedback Statistics
+  const feedbackStats = useMemo(() => {
+    const total = feedbacks.length;
+    if (total === 0) {
+      return { total: 0, avgRating: "0.0", count5: 0, count4: 0, count3: 0, count2: 0, count1: 0, satisfactionRate: 0 };
+    }
+    let sum = 0;
+    let count5 = 0;
+    let count4 = 0;
+    let count3 = 0;
+    let count2 = 0;
+    let count1 = 0;
+
+    feedbacks.forEach((f) => {
+      const r = Number(f.rating) || 0;
+      sum += r;
+      if (r === 5) count5++;
+      else if (r === 4) count4++;
+      else if (r === 3) count3++;
+      else if (r === 2) count2++;
+      else if (r === 1) count1++;
+    });
+
+    const avgRating = (sum / total).toFixed(1);
+    const satisfactionRate = Math.round(((count5 + count4) / total) * 100);
+
+    return { total, avgRating, count5, count4, count3, count2, count1, satisfactionRate };
+  }, [feedbacks]);
+
+  // Filtered & Paginated Feedbacks
+  const filteredFeedbacks = useMemo(() => {
+    return feedbacks.filter((f) => {
+      if (feedbackRatingFilter !== "All") {
+        if (Number(f.rating) !== Number(feedbackRatingFilter)) return false;
+      }
+
+      if (feedbackSearchQuery.trim()) {
+        const query = feedbackSearchQuery.toLowerCase();
+        const cName = (f.userName || f.user?.name || "").toLowerCase();
+        const cEmail = (f.user?.email || "").toLowerCase();
+        const cComment = (f.comment || "").toLowerCase();
+        const cIssue = (f.issueTitle || "").toLowerCase();
+        const cCategory = (f.category || "").toLowerCase();
+
+        return (
+          cName.includes(query) ||
+          cEmail.includes(query) ||
+          cComment.includes(query) ||
+          cIssue.includes(query) ||
+          cCategory.includes(query)
+        );
+      }
+
+      return true;
+    });
+  }, [feedbacks, feedbackRatingFilter, feedbackSearchQuery]);
+
+  const paginatedFeedbacks = useMemo(() => {
+    const startIndex = (feedbackPage - 1) * feedbackPageSize;
+    return filteredFeedbacks.slice(startIndex, startIndex + feedbackPageSize);
+  }, [filteredFeedbacks, feedbackPage, feedbackPageSize]);
+
+  const feedbackTotalPages = Math.ceil(filteredFeedbacks.length / feedbackPageSize) || 1;
+
+  const renderStarRating = (rating) => {
+    const r = Math.min(5, Math.max(1, Math.round(Number(rating) || 5)));
+    return (
+      <div className="fb-stars-row" title={`${r} of 5 stars`}>
+        {[1, 2, 3, 4, 5].map((star) => (
+          <span
+            key={star}
+            className={star <= r ? "fb-star-icon" : "fb-star-empty"}
+          >
+            ★
+          </span>
+        ))}
+        <span className="fb-rating-badge">{r}.0</span>
+      </div>
+    );
   };
 
   return (
@@ -1386,6 +1510,25 @@ function AdminDashboard() {
                 </div>
               )}
 
+              {/* Citizen Rating & Feedback */}
+              {viewingIssue.feedback?.rating && (
+                <div style={{ background: "rgba(234, 179, 8, 0.08)", border: "1px solid rgba(234, 179, 8, 0.3)", borderRadius: "8px", padding: "12px 16px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: "11px", fontWeight: "700", color: "#facc15", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                      ⭐ Citizen Resolution Feedback
+                    </span>
+                    <span style={{ color: "#facc15", fontWeight: "700", fontSize: "14px" }}>
+                      {"★".repeat(viewingIssue.feedback.rating)}{"☆".repeat(5 - viewingIssue.feedback.rating)} ({viewingIssue.feedback.rating}/5)
+                    </span>
+                  </div>
+                  {viewingIssue.feedback.comment && (
+                    <p style={{ margin: "8px 0 0 0", fontSize: "13px", color: "#e2e8f0", fontStyle: "italic" }}>
+                      "{viewingIssue.feedback.comment}"
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px", paddingTop: "14px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
                 <span style={{ fontSize: "12px", color: "#94a3b8" }}>
                   Reported: {viewingIssue.createdAt ? new Date(viewingIssue.createdAt).toLocaleString() : "Recently"}
@@ -1634,7 +1777,6 @@ function AdminDashboard() {
               className={`dept-nav-item ${activeTab === "users" ? "active" : ""}`}
               onClick={() => {
                 setActiveTab("users");
-                setUserRoleFilter("All");
                 setUserSearchQuery("");
                 setIsMobileOpen(false);
               }}
@@ -1653,7 +1795,7 @@ function AdminDashboard() {
                     border: "1px solid rgba(56, 189, 248, 0.3)",
                   }}
                 >
-                  {users.length}
+                  {userStats.total}
                 </span>
               )}
             </button>
@@ -1682,6 +1824,35 @@ function AdminDashboard() {
                   }}
                 >
                   {departments.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              className={`dept-nav-item ${activeTab === "feedbacks" ? "active" : ""}`}
+              onClick={() => {
+                setActiveTab("feedbacks");
+                setFeedbackSearchQuery("");
+                setFeedbackRatingFilter("All");
+                setFeedbackPage(1);
+                setIsMobileOpen(false);
+              }}
+              title="Citizen Feedbacks & Reviews"
+            >
+              <span className="nav-item-icon">⭐</span>
+              {!isCollapsed && (
+                <span className="nav-item-label">Feedbacks & Reviews</span>
+              )}
+              {!isCollapsed && (
+                <span
+                  className="nav-item-badge"
+                  style={{
+                    background: "rgba(250, 204, 21, 0.15)",
+                    color: "#facc15",
+                    border: "1px solid rgba(250, 204, 21, 0.3)",
+                  }}
+                >
+                  {feedbacks.length}
                 </span>
               )}
             </button>
@@ -1749,9 +1920,13 @@ function AdminDashboard() {
                   <>
                     <span className="accent-text">👥 Manage</span> Users & Roles
                   </>
-                ) : (
+                ) : activeTab === "departments" ? (
                   <>
                     <span className="accent-text">🏢 Manage</span> Municipal Departments
+                  </>
+                ) : (
+                  <>
+                    <span className="accent-text">⭐ Citizen</span> Feedback & Reviews
                   </>
                 )}
               </h1>
@@ -1764,7 +1939,9 @@ function AdminDashboard() {
                     : `Central civic grievance repository • Showing all ${complaintStats.total} complaints across the city`
                   : activeTab === "users"
                   ? `Platform user directory • ${userStats.total} registered accounts`
-                  : `Municipal department directory • ${departments.length} registered departments`}
+                  : activeTab === "departments"
+                  ? `Municipal department directory • ${departments.length} registered departments`
+                  : `Citizen satisfaction reviews, service ratings & portal feedback • Showing all ${feedbackStats.total} reviews`}
               </p>
             </div>
           </div>
@@ -1780,32 +1957,40 @@ function AdminDashboard() {
                     ? "Search complaints, ID, category..."
                     : activeTab === "users"
                     ? "Search users by name, email, role..."
-                    : "Search departments by name or scope..."
+                    : activeTab === "departments"
+                    ? "Search departments by name or scope..."
+                    : "Search feedbacks by citizen, comment, topic..."
                 }
                 value={
                   activeTab === "complaints"
                     ? searchQuery
                     : activeTab === "users"
                     ? userSearchQuery
-                    : deptSearchQuery
+                    : activeTab === "departments"
+                    ? deptSearchQuery
+                    : feedbackSearchQuery
                 }
                 onChange={(e) => {
                   if (activeTab === "complaints") setSearchQuery(e.target.value);
                   else if (activeTab === "users") setUserSearchQuery(e.target.value);
-                  else setDeptSearchQuery(e.target.value);
+                  else if (activeTab === "departments") setDeptSearchQuery(e.target.value);
+                  else setFeedbackSearchQuery(e.target.value);
                 }}
               />
               {(activeTab === "complaints"
                 ? searchQuery
                 : activeTab === "users"
                 ? userSearchQuery
-                : deptSearchQuery) && (
+                : activeTab === "departments"
+                ? deptSearchQuery
+                : feedbackSearchQuery) && (
                 <button
                   className="clear-search-btn"
                   onClick={() => {
                     if (activeTab === "complaints") setSearchQuery("");
                     else if (activeTab === "users") setUserSearchQuery("");
-                    else setDeptSearchQuery("");
+                    else if (activeTab === "departments") setDeptSearchQuery("");
+                    else setFeedbackSearchQuery("");
                   }}
                   title="Clear search"
                 >
@@ -2074,9 +2259,16 @@ function AdminDashboard() {
 
                               <td>
                                 <div className="td-issue-info">
-                                  <span className="category-pill" style={{ width: "fit-content", padding: "2px 8px", fontSize: "11px" }}>
-                                    {getCategoryIcon(issue.category)} {issue.category || "General"}
-                                  </span>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                                    <span className="category-pill" style={{ width: "fit-content", padding: "2px 8px", fontSize: "11px" }}>
+                                      {getCategoryIcon(issue.category)} {issue.category || "General"}
+                                    </span>
+                                    {issue.user && (
+                                      <span style={{ fontSize: "11px", color: "#94a3b8", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                                        👤 {typeof issue.user === "object" ? `${issue.user.name || "Citizen"} (${issue.user.email})` : "Citizen"}
+                                      </span>
+                                    )}
+                                  </div>
                                   <span className="td-issue-title" title={issue.title}>
                                     {issue.title}
                                   </span>
@@ -2329,39 +2521,24 @@ function AdminDashboard() {
               {/* User Metric Cards Strip */}
               <div className="stats-grid">
                 <div
-                  className={`stat-card ${userRoleFilter === "All" ? "stat-active" : ""}`}
-                  onClick={() => setUserRoleFilter("All")}
-                  style={{ cursor: "pointer" }}
-                  title="Filter all users"
+                  className="stat-card"
+                  title="Total registered platform citizens"
                 >
                   <div className="stat-icon">👥</div>
                   <div className="stat-info">
                     <span className="stat-value">{userStats.total}</span>
-                    <span className="stat-label">Total Users</span>
+                    <span className="stat-label">Total Citizens</span>
                   </div>
                 </div>
 
                 <div
-                  className={`stat-card ${userRoleFilter === "user" ? "stat-active" : ""}`}
-                  onClick={() => setUserRoleFilter(userRoleFilter === "user" ? "All" : "user")}
-                  style={{ cursor: "pointer" }}
-                  title="Filter citizens"
+                  className="stat-card"
+                  title="Active registered citizens"
                 >
                   <div className="stat-icon">👤</div>
                   <div className="stat-info">
                     <span className="stat-value">{userStats.citizens}</span>
-                    <span className="stat-label">Citizens</span>
-                  </div>
-                </div>
-
-                <div
-                  className="stat-card stat-card-progress"
-                  title="Registered administrators"
-                >
-                  <div className="stat-icon">🛡️</div>
-                  <div className="stat-info">
-                    <span className="stat-value">{userStats.admins}</span>
-                    <span className="stat-label">Administrators</span>
+                    <span className="stat-label">Active Citizens</span>
                   </div>
                 </div>
               </div>
@@ -2369,21 +2546,9 @@ function AdminDashboard() {
               {/* Users Toolbar - Top of Table */}
               <div className="complaints-center-toolbar" style={{ marginTop: "10px" }}>
                 <div className="toolbar-left-controls">
-                  <div className="toolbar-control-group">
-                    <label className="toolbar-control-label" htmlFor="user-role-select-filter">
-                      <span className="toolbar-icon">👤</span> Filter Role:
-                    </label>
-                    <select
-                      id="user-role-select-filter"
-                      className="toolbar-select"
-                      value={userRoleFilter}
-                      onChange={(e) => setUserRoleFilter(e.target.value)}
-                    >
-                      <option value="All">🌐 All Roles ({userStats.total})</option>
-                      <option value="user">👤 Citizens ({userStats.citizens})</option>
-                      <option value="admin">🛡️ Administrators ({userStats.admins})</option>
-                    </select>
-                  </div>
+                  <span style={{ fontSize: "13px", color: "var(--text-secondary)", fontWeight: 500 }}>
+                    Displaying <strong>{filteredUsers.length}</strong> platform citizens
+                  </span>
                 </div>
 
                 <div className="toolbar-right-meta">
@@ -2393,14 +2558,14 @@ function AdminDashboard() {
                       onClick={() => setViewMode("table")}
                       title="Professional Table View"
                     >
-                      📋 Table
+                      📋 
                     </button>
                     <button
                       className={`view-toggle-btn ${viewMode === "cards" ? "active" : ""}`}
                       onClick={() => setViewMode("cards")}
                       title="Executive Card Grid"
                     >
-                      🗂️ Cards
+                      🗂️ 
                     </button>
                   </div>
 
@@ -2412,16 +2577,13 @@ function AdminDashboard() {
                     ➕ Add User
                   </button>
 
-                  {(userRoleFilter !== "All" || userSearchQuery) && (
+                  {userSearchQuery && (
                     <button
                       className="btn-toolbar-reset"
-                      onClick={() => {
-                        setUserRoleFilter("All");
-                        setUserSearchQuery("");
-                      }}
-                      title="Reset all filters to show all users"
+                      onClick={() => setUserSearchQuery("")}
+                      title="Clear search query"
                     >
-                      ✕ Reset to All
+                      ✕ Clear Search
                     </button>
                   )}
                 </div>
@@ -2439,17 +2601,14 @@ function AdminDashboard() {
               {!loadingUsers && filteredUsers.length === 0 && (
                 <div className="dashboard-empty">
                   <div className="empty-icon">👥</div>
-                  <h3>No Users Found</h3>
-                  <p>No user accounts matched the current search or role filter.</p>
-                  {(userRoleFilter !== "All" || userSearchQuery) && (
+                  <h3>No Citizens Found</h3>
+                  <p>No citizen accounts matched the current search.</p>
+                  {userSearchQuery && (
                     <button
                       className="btn-reset-filters"
-                      onClick={() => {
-                        setUserRoleFilter("All");
-                        setUserSearchQuery("");
-                      }}
+                      onClick={() => setUserSearchQuery("")}
                     >
-                      Show All Users
+                      Show All Citizens
                     </button>
                   )}
                 </div>
@@ -2467,8 +2626,7 @@ function AdminDashboard() {
                           <th className="col-u-user">User</th>
                           <th className="col-u-role">Role</th>
                           <th className="col-u-date">Joined On</th>
-                          <th className="col-u-role-sel">Change Role</th>
-                          <th className="col-u-act">Actions</th>
+                          <th className="col-u-act" style={{ textAlign: "right", paddingRight: "24px" }}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2510,20 +2668,8 @@ function AdminDashboard() {
                                 </span>
                               </td>
 
-                              {/* Change Role Selector */}
-                              <td>
-                                <select
-                                  className="td-action-select"
-                                  value={u.role || "user"}
-                                  onChange={(e) => handleUpdateUserRole(u._id, e.target.value)}
-                                >
-                                  <option value="user">👤 Citizen</option>
-                                  <option value="admin">🛡️ Administrator</option>
-                                </select>
-                              </td>
-
                               {/* Actions (Delete) */}
-                              <td>
+                              <td style={{ textAlign: "right", paddingRight: "24px" }}>
                                 <button
                                   className="btn-delete-user"
                                   onClick={() => handleDeleteUser(u._id, u.name)}
@@ -2567,22 +2713,10 @@ function AdminDashboard() {
                           </span>
                         </div>
 
-                        <div className="user-card-controls">
-                          <div className="control-group">
-                            <label className="control-label" style={{ fontSize: "10px" }}>Change Role</label>
-                            <select
-                              className="td-action-select"
-                              value={u.role || "user"}
-                              onChange={(e) => handleUpdateUserRole(u._id, e.target.value)}
-                            >
-                              <option value="user">👤 Citizen</option>
-                              <option value="admin">🛡️ Administrator</option>
-                            </select>
-                          </div>
-
+                        <div className="user-card-controls" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
                           <button
                             className="btn-delete-user"
-                            style={{ alignSelf: "flex-end", marginTop: "6px" }}
+                            style={{ margin: 0 }}
                             onClick={() => handleDeleteUser(u._id, u.name)}
                           >
                             🗑️ Delete User
@@ -2683,14 +2817,14 @@ function AdminDashboard() {
                       onClick={() => setViewMode("table")}
                       title="Professional Table View"
                     >
-                      📋 Table
+                      📋 
                     </button>
                     <button
                       className={`view-toggle-btn ${viewMode === "cards" ? "active" : ""}`}
                       onClick={() => setViewMode("cards")}
                       title="Executive Card Grid"
                     >
-                      🗂️ Cards
+                      🗂️ 
                     </button>
                   </div>
 
@@ -2740,12 +2874,12 @@ function AdminDashboard() {
                     <table className="pro-table">
                       <thead>
                         <tr>
-                          <th style={{ width: "220px" }}>Department Name</th>
-                          <th>Description & Scope</th>
-                          <th style={{ width: "130px", textAlign: "center" }}>Staff</th>
-                          <th style={{ width: "150px", textAlign: "center" }}>Complaints</th>
+                          <th style={{ minWidth: "300px" }}>Department Name</th>
+                          <th style={{ minWidth: "260px" }}>Description & Scope</th>
+                          <th style={{ width: "110px", textAlign: "center" }}>Staff</th>
+                          <th style={{ width: "140px", textAlign: "center" }}>Complaints</th>
                           <th style={{ width: "130px" }}>Created Date</th>
-                          <th style={{ width: "120px", textAlign: "center" }}>Actions</th>
+                          <th style={{ width: "110px", textAlign: "center" }}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2765,22 +2899,37 @@ function AdminDashboard() {
                                 : u.department) === dept._id
                           ).length;
 
+                          const deptOfficer = users.find(
+                            (u) =>
+                              u.role === "department" &&
+                              (typeof u.department === "object" && u.department !== null
+                                ? u.department._id
+                                : u.department) === dept._id
+                          );
+
                           return (
                             <tr key={dept._id}>
                               <td>
-                                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                                  <span style={{ fontSize: "20px" }}>{getDeptIcon(dept.name)}</span>
-                                  <div>
-                                    <div style={{ fontWeight: 700, color: "#f8fafc", fontSize: "14px" }}>
+                                <div className="dept-name-cell">
+                                  <div className="dept-avatar-badge">
+                                    {getDeptIcon(dept.name)}
+                                  </div>
+                                  <div className="dept-name-details">
+                                    <span className="dept-title-text">
                                       {dept.name}
-                                    </div>
-                                    <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "2px", flexWrap: "wrap" }}>
-                                      <span className="td-id-chip" style={{ fontSize: "10px", padding: "1px 6px" }}>
-                                        #{dept._id?.slice(-6)}
+                                    </span>
+                                    <div className="dept-meta-subrow">
+                                      <span className="dept-code-pill">
+                                        ID: {dept._id?.slice(-6)}
                                       </span>
                                       {dept.email && (
-                                        <span style={{ fontSize: "11px", color: "#38bdf8" }}>
+                                        <span className="dept-email-pill">
                                           ✉️ {dept.email}
+                                        </span>
+                                      )}
+                                      {deptOfficer?.password && (
+                                        <span className="dept-email-pill" style={{ color: "#a3e635", borderColor: "rgba(163, 230, 53, 0.3)" }}>
+                                          🔑 {deptOfficer.password}
                                         </span>
                                       )}
                                     </div>
@@ -2962,6 +3111,364 @@ function AdminDashboard() {
                   onPageChange={setDepartmentsPage}
                   onPageSizeChange={setDepartmentsPageSize}
                   pageSizeOptions={[5, 10, 20]}
+                />
+              )}
+            </>
+          )}
+
+          {/* =========================================================
+              FEEDBACKS & REVIEWS TAB
+              ========================================================= */}
+          {activeTab === "feedbacks" && (
+            <>
+              {/* Feedback Metric Cards Strip */}
+              <div className="stats-grid">
+                <div
+                  className={`stat-card ${feedbackRatingFilter === "All" ? "stat-active" : ""}`}
+                  onClick={() => {
+                    setFeedbackRatingFilter("All");
+                    setFeedbackPage(1);
+                  }}
+                  style={{ cursor: "pointer" }}
+                  title="Total Citizen Feedbacks"
+                >
+                  <div className="stat-icon">💬</div>
+                  <div className="stat-info">
+                    <span className="stat-value">{feedbackStats.total}</span>
+                    <span className="stat-label">Total Feedbacks</span>
+                  </div>
+                </div>
+
+                <div
+                  className="stat-card"
+                  style={{ borderColor: "rgba(250, 204, 21, 0.35)" }}
+                  title="Overall Average Rating out of 5.0"
+                >
+                  <div className="stat-icon">⭐</div>
+                  <div className="stat-info">
+                    <span className="stat-value" style={{ color: "#facc15" }}>
+                      {feedbackStats.avgRating}{" "}
+                      <span style={{ fontSize: "14px", color: "var(--text-muted)", fontWeight: 500 }}>
+                        / 5.0
+                      </span>
+                    </span>
+                    <span className="stat-label">Average Rating</span>
+                  </div>
+                </div>
+
+                <div
+                  className="stat-card stat-card-verified"
+                  title="Citizen Satisfaction Rate (4 & 5 Star Reviews)"
+                >
+                  <div className="stat-icon">🌟</div>
+                  <div className="stat-info">
+                    <span className="stat-value" style={{ color: "#10b981" }}>
+                      {feedbackStats.satisfactionRate}%
+                    </span>
+                    <span className="stat-label">Satisfaction Rate</span>
+                  </div>
+                </div>
+
+                <div
+                  className={`stat-card ${feedbackRatingFilter === "5" ? "stat-active" : ""}`}
+                  style={{ borderColor: "rgba(56, 189, 248, 0.35)", cursor: "pointer" }}
+                  onClick={() => {
+                    setFeedbackRatingFilter(feedbackRatingFilter === "5" ? "All" : "5");
+                    setFeedbackPage(1);
+                  }}
+                  title="5-Star Ratings"
+                >
+                  <div className="stat-icon">🏆</div>
+                  <div className="stat-info">
+                    <span className="stat-value" style={{ color: "#38bdf8" }}>
+                      {feedbackStats.count5}
+                    </span>
+                    <span className="stat-label">5-Star Reviews</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Feedbacks Toolbar */}
+              <div className="complaints-center-toolbar" style={{ marginTop: "10px" }}>
+                <div className="toolbar-left-controls">
+                  <div className="toolbar-control-group">
+                    <label className="toolbar-control-label" htmlFor="rating-select-filter">
+                      <span className="toolbar-icon">⭐</span> Rating:
+                    </label>
+                    <select
+                      id="rating-select-filter"
+                      className="toolbar-select"
+                      value={feedbackRatingFilter}
+                      onChange={(e) => {
+                        setFeedbackRatingFilter(e.target.value);
+                        setFeedbackPage(1);
+                      }}
+                      title="Filter by star rating"
+                    >
+                      <option value="All">🌟 All Ratings ({feedbackStats.total})</option>
+                      <option value="5">⭐⭐⭐⭐⭐ 5 Stars ({feedbackStats.count5})</option>
+                      <option value="4">⭐⭐⭐⭐ 4 Stars ({feedbackStats.count4})</option>
+                      <option value="3">⭐⭐⭐ 3 Stars ({feedbackStats.count3})</option>
+                      <option value="2">⭐⭐ 2 Stars ({feedbackStats.count2})</option>
+                      <option value="1">⭐ 1 Star ({feedbackStats.count1})</option>
+                    </select>
+                  </div>
+
+                  <span
+                    style={{
+                      fontSize: "13px",
+                      color: "var(--text-muted)",
+                      fontWeight: 600,
+                      marginLeft: "8px",
+                    }}
+                  >
+                    Showing {filteredFeedbacks.length} of {feedbacks.length} Reviews
+                  </span>
+                </div>
+
+                <div className="toolbar-right-meta">
+                  <div className="view-mode-toggle">
+                    <button
+                      className={`view-toggle-btn ${viewMode === "table" ? "active" : ""}`}
+                      onClick={() => setViewMode("table")}
+                      title="Professional Table View"
+                    >
+                      📋
+                    </button>
+                    <button
+                      className={`view-toggle-btn ${viewMode === "cards" ? "active" : ""}`}
+                      onClick={() => setViewMode("cards")}
+                      title="Executive Card Grid"
+                    >
+                      🗂️
+                    </button>
+                  </div>
+
+                  {(feedbackRatingFilter !== "All" || feedbackSearchQuery) && (
+                    <button
+                      className="btn-toolbar-reset"
+                      onClick={() => {
+                        setFeedbackRatingFilter("All");
+                        setFeedbackSearchQuery("");
+                        setFeedbackPage(1);
+                      }}
+                      title="Reset all filters"
+                    >
+                      ✕ Reset to All
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Loading State */}
+              {loadingFeedbacks && (
+                <div className="dashboard-loading">
+                  <div className="spinner"></div>
+                  <p>Loading citizen feedback and reviews...</p>
+                </div>
+              )}
+
+              {/* Feedbacks Table View */}
+              {!loadingFeedbacks && filteredFeedbacks.length > 0 && viewMode === "table" && (
+                <div className="pro-table-wrapper">
+                  <div className="pro-table-scroll">
+                    <table className="pro-table">
+                      <thead>
+                        <tr>
+                          <th className="col-fb-user">Citizen</th>
+                          <th className="col-fb-rating">Rating</th>
+                          <th className="col-fb-topic">Category & Topic</th>
+                          <th className="col-fb-comment">Review & Feedback</th>
+                          <th className="col-fb-date">Submitted On</th>
+                          <th className="col-fb-act" style={{ textAlign: "right", paddingRight: "20px" }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paginatedFeedbacks.map((fb) => {
+                          const citizenName = fb.userName || fb.user?.name || "Citizen";
+                          const citizenEmail = fb.user?.email || "No email";
+                          const avatarLetter = citizenName.charAt(0).toUpperCase();
+
+                          return (
+                            <tr key={fb._id}>
+                              <td>
+                                <div className="user-cell-wrap">
+                                  <div
+                                    className="user-avatar-circle"
+                                    style={{
+                                      background: "linear-gradient(135deg, #facc15, #ca8a04)",
+                                      color: "#000",
+                                      fontWeight: 800,
+                                    }}
+                                  >
+                                    {avatarLetter}
+                                  </div>
+                                  <div className="user-info-text">
+                                    <span className="user-fullname">{citizenName}</span>
+                                    <span className="user-email-text">{citizenEmail}</span>
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td>{renderStarRating(fb.rating)}</td>
+
+                              <td>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+                                  <span className="fb-category-pill">{fb.category || "Resolution Quality"}</span>
+                                  <span style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 500 }}>
+                                    {fb.issueTitle || "General Portal / City Service"}
+                                  </span>
+                                </div>
+                              </td>
+
+                              <td>
+                                <div className="fb-comment-quote">
+                                  "{fb.comment}"
+                                </div>
+                              </td>
+
+                              <td>
+                                <span className="td-meta-date">
+                                  {fb.createdAt
+                                    ? new Date(fb.createdAt).toLocaleDateString(undefined, {
+                                        month: "short",
+                                        day: "numeric",
+                                        year: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })
+                                    : "N/A"}
+                                </span>
+                              </td>
+
+                              <td style={{ textAlign: "right", paddingRight: "20px" }}>
+                                <button
+                                  className="btn-delete-user"
+                                  onClick={() => handleDeleteFeedback(fb._id, citizenName)}
+                                  title="Delete feedback entry"
+                                >
+                                  🗑️ Delete
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Feedbacks Cards View */}
+              {!loadingFeedbacks && filteredFeedbacks.length > 0 && viewMode === "cards" && (
+                <div className="dashboard-cards-grid">
+                  {paginatedFeedbacks.map((fb) => {
+                    const citizenName = fb.userName || fb.user?.name || "Citizen";
+                    const citizenEmail = fb.user?.email || "No email";
+                    const avatarLetter = citizenName.charAt(0).toUpperCase();
+
+                    return (
+                      <div className="fb-card-pro" key={fb._id}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px" }}>
+                          <div className="user-cell-wrap">
+                            <div
+                              className="user-avatar-circle"
+                              style={{
+                                background: "linear-gradient(135deg, #facc15, #ca8a04)",
+                                color: "#000",
+                                fontWeight: 800,
+                              }}
+                            >
+                              {avatarLetter}
+                            </div>
+                            <div className="user-info-text">
+                              <span className="user-fullname">{citizenName}</span>
+                              <span className="user-email-text">{citizenEmail}</span>
+                            </div>
+                          </div>
+                          {renderStarRating(fb.rating)}
+                        </div>
+
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                          <span className="fb-category-pill">{fb.category || "Resolution Quality"}</span>
+                          <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                            • {fb.issueTitle || "General Portal / City Service"}
+                          </span>
+                        </div>
+
+                        <div className="fb-comment-quote">
+                          "{fb.comment}"
+                        </div>
+
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            borderTop: "1px solid rgba(255,255,255,0.06)",
+                            paddingTop: "12px",
+                            marginTop: "4px",
+                          }}
+                        >
+                          <span className="td-meta-date">
+                            {fb.createdAt
+                              ? new Date(fb.createdAt).toLocaleDateString(undefined, {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })
+                              : "N/A"}
+                          </span>
+                          <button
+                            className="btn-delete-user"
+                            onClick={() => handleDeleteFeedback(fb._id, citizenName)}
+                            title="Delete feedback entry"
+                          >
+                            🗑️ Delete
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Empty State */}
+              {!loadingFeedbacks && filteredFeedbacks.length === 0 && (
+                <div className="no-issues-placeholder">
+                  <div className="empty-state-icon">⭐</div>
+                  <h3>No Citizen Feedback Found</h3>
+                  <p>
+                    {feedbackSearchQuery || feedbackRatingFilter !== "All"
+                      ? "No reviews match your current filters. Try resetting the filter or search query."
+                      : "No citizens have submitted feedback or reviews yet."}
+                  </p>
+                  {(feedbackSearchQuery || feedbackRatingFilter !== "All") && (
+                    <button
+                      className="btn-reset-filters"
+                      onClick={() => {
+                        setFeedbackSearchQuery("");
+                        setFeedbackRatingFilter("All");
+                        setFeedbackPage(1);
+                      }}
+                      style={{ marginTop: "12px" }}
+                    >
+                      Reset Filters
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Feedbacks Pagination */}
+              {filteredFeedbacks.length > 0 && (
+                <Pagination
+                  currentPage={feedbackPage}
+                  totalPages={feedbackTotalPages}
+                  totalItems={filteredFeedbacks.length}
+                  pageSize={feedbackPageSize}
+                  onPageChange={setFeedbackPage}
+                  onPageSizeChange={setFeedbackPageSize}
+                  pageSizeOptions={[6, 12, 24]}
                 />
               )}
             </>

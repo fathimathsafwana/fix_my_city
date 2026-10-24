@@ -14,9 +14,13 @@ function ReportIssue() {
   const [locationMessage, setLocationMessage] = useState("");
 
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [locating, setLocating] = useState(false);
   const [trackingId, setTrackingId] = useState("");
 
   const getCurrentLocation = () => {
+    if (locating) return;
+
     if (!navigator.geolocation) {
       setLocationMessage(
         "GPS location is not supported by your browser."
@@ -25,10 +29,12 @@ function ReportIssue() {
       return;
     }
 
+    setLocating(true);
     setLocationMessage("Getting your location...");
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        setLocating(false);
         const latitude = position.coords.latitude;
         const longitude = position.coords.longitude;
 
@@ -41,6 +47,7 @@ function ReportIssue() {
         showToast("GPS Location detected successfully!", "success");
       },
       (error) => {
+        setLocating(false);
         if (error.code === error.PERMISSION_DENIED) {
           setLocationMessage(
             "Location permission was denied. Setting approximate city coordinates."
@@ -63,6 +70,8 @@ function ReportIssue() {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
+    if (submitted) return;
+
     if (!title || !category || !description) {
       showToast("Please fill in all required fields.", "warning");
       return;
@@ -74,6 +83,7 @@ function ReportIssue() {
     }
 
     try {
+      setSubmitting(true);
       const formData = new FormData();
 
       formData.append("title", title);
@@ -114,6 +124,8 @@ function ReportIssue() {
     } catch (error) {
       console.error("Error:", error);
       showToast("Cannot connect to the backend.", "error");
+    } finally {
+      setSubmitting(false);
     }
   };
   return (
@@ -171,6 +183,10 @@ function ReportIssue() {
                 Drainage
               </option>
 
+              <option value="Public Safety">
+                Public Safety
+              </option>
+
               <option value="Other">
                 Other
               </option>
@@ -199,8 +215,9 @@ function ReportIssue() {
               type="button"
               className="location-button"
               onClick={getCurrentLocation}
+              disabled={locating}
             >
-              📍 Use My Current Location
+              {locating ? "⏳ Getting Location..." : "📍 Use My Current Location"}
             </button>
 
             {/* Location Status Message (single message only) */}
@@ -250,9 +267,16 @@ function ReportIssue() {
           {/* Submit */}
           <button
             type="submit"
-            className="report-submit"
+            className={`report-submit ${submitted ? "submitted" : ""} ${submitting ? "submitting" : ""}`}
+            disabled={submitting || submitted}
           >
-            Submit Issue
+            {submitting ? (
+              <>⏳ Submitting Issue...</>
+            ) : submitted ? (
+              <>✅ Submitted</>
+            ) : (
+              "Submit Issue"
+            )}
           </button>
 
         </form>
@@ -315,6 +339,7 @@ function ReportIssue() {
                   setPhoto(null);
                   setLocation(null);
                   setLocationMessage("");
+                  setLocating(false);
                   setSubmitted(false);
                   setTrackingId("");
                 }}

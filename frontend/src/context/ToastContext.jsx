@@ -1,25 +1,36 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { ToastContext } from "./toastContextDef";
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
+  const timerRef = useRef(null);
 
   const removeToast = useCallback((id) => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
   const showToast = useCallback((message, type = "info", duration = 3500) => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
     const id = Date.now() + Math.random().toString(36).substring(2, 9);
     const newToast = { id, message, type };
 
-    setToasts((prev) => [...prev, newToast]);
+    // Keep only a single active toast to prevent duplicate or stacked notifications
+    setToasts([newToast]);
 
     if (duration > 0) {
-      setTimeout(() => {
-        removeToast(id);
+      timerRef.current = setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
       }, duration);
     }
-  }, [removeToast]);
+  }, []);
 
   return (
     <ToastContext.Provider value={{ showToast, removeToast }}>

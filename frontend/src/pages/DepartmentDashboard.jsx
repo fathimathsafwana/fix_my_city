@@ -9,15 +9,6 @@ function DepartmentDashboard() {
 
   const [issues, setIssues] = useState([]);
   const [departments, setDepartments] = useState([]);
-  const [selectedDepartment, setSelectedDepartment] = useState(() => {
-    try {
-      const u = JSON.parse(localStorage.getItem("user") || "null");
-      if (u && u.department) {
-        return typeof u.department === "object" ? u.department._id : u.department;
-      }
-    } catch {}
-    return "";
-  });
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -43,18 +34,23 @@ function DepartmentDashboard() {
   const [photoPreviews, setPhotoPreviews] = useState({});
 
   // Current logged in user from localStorage
-  const [currentUser, setCurrentUser] = useState(() => {
+  const [currentUser] = useState(() => {
     try {
-      const u = JSON.parse(localStorage.getItem("user") || "null");
-      if (u && (u.name === "Electrical Department Officer" || !u.name)) {
-        u.name = "Department Officer";
-        localStorage.setItem("user", JSON.stringify(u));
-      }
-      return u;
+      return JSON.parse(localStorage.getItem("user") || "null");
     } catch {
       return null;
     }
   });
+
+  const officerDeptId = useMemo(() => {
+    try {
+      const u = currentUser;
+      if (u && u.department) {
+        return typeof u.department === "object" ? String(u.department._id) : String(u.department);
+      }
+    } catch {}
+    return "";
+  }, [currentUser]);
 
   const handleLogout = () => {
     localStorage.removeItem("user");
@@ -62,26 +58,11 @@ function DepartmentDashboard() {
     navigate("/login");
   };
 
-  useEffect(() => {
-    fetchIssues();
-    fetchDepartments();
-  }, []);
-
-  useEffect(() => {
-    if (currentUser?.department && !selectedDepartment) {
-      const deptId =
-        typeof currentUser.department === "object"
-          ? currentUser.department._id
-          : currentUser.department;
-      if (deptId) setSelectedDepartment(String(deptId));
-    }
-  }, [currentUser, selectedDepartment]);
-
   const getAuthHeaders = () => {
     try {
       const user = JSON.parse(localStorage.getItem("user") || "null");
-      if (user && user.id) {
-        return { "user-id": user.id };
+      if (user && (user.id || user._id)) {
+        return { "user-id": user.id || user._id };
       }
     } catch {
       // ignore
@@ -90,7 +71,9 @@ function DepartmentDashboard() {
   };
 
   const fetchIssues = () => {
-    fetch("http://localhost:5000/api/issues")
+    fetch("http://localhost:5000/api/issues", {
+      headers: getAuthHeaders(),
+    })
       .then((response) => response.json())
       .then((data) => {
         setIssues(Array.isArray(data) ? data : []);
@@ -114,7 +97,18 @@ function DepartmentDashboard() {
       });
   };
 
+  useEffect(() => {
+    fetchIssues();
+    fetchDepartments();
+  }, []);
+
   const handleStatusChange = async (issueId, newStatus) => {
+    const targetIssue = issues.find((i) => i._id === issueId);
+    if (newStatus === "Resolved" && (!targetIssue || !targetIssue.resolvedPhoto)) {
+      showToast("Photo proof of completed work is required before marking as Resolved.", "warning");
+      return;
+    }
+
     setUpdatingId(issueId);
     try {
       const response = await fetch(
@@ -131,11 +125,10 @@ function DepartmentDashboard() {
         }
       );
 
-      if (!response.ok) {
-        throw new Error("Failed to update status");
-      }
-
       const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to update status");
+      }
 
       setIssues((currentIssues) =>
         currentIssues.map((item) =>
@@ -146,7 +139,7 @@ function DepartmentDashboard() {
       showToast(`Status successfully updated to "${newStatus}"!`, "success");
     } catch (error) {
       console.error(error);
-      showToast("Failed to update complaint status.", "error");
+      showToast(error.message || "Failed to update complaint status.", "error");
     } finally {
       setUpdatingId(null);
     }
@@ -222,38 +215,28 @@ function DepartmentDashboard() {
     }
   };
 
-  // Live count of issues assigned to each department
-  const deptIssueCounts = useMemo(() => {
-    const counts = {};
-    issues.forEach((issue) => {
-      const deptId =
-        typeof issue.department === "object" && issue.department !== null
-          ? issue.department._id
-          : issue.department;
-      if (deptId) {
-        const key = String(deptId);
-        counts[key] = (counts[key] || 0) + 1;
-      }
-    });
-    return counts;
-  }, [issues]);
-
-  // Selected Department Object
+  // Current Department Object for logged-in officer
   const currentDept = useMemo(() => {
-    return departments.find((d) => String(d._id) === String(selectedDepartment));
-  }, [departments, selectedDepartment]);
+    if (currentUser?.department && typeof currentUser.department === "object" && currentUser.department.name) {
+      return currentUser.department;
+    }
+    if (officerDeptId) {
+      return departments.find((d) => String(d._id) === officerDeptId) || null;
+    }
+    return null;
+  }, [departments, currentUser, officerDeptId]);
 
   // Filter issues based on department, search, and status
   const filteredIssues = useMemo(() => {
     return issues.filter((issue) => {
       const issueDeptId =
         typeof issue.department === "object" && issue.department !== null
-          ? issue.department._id
-          : issue.department;
+          ? String(issue.department._id)
+          : String(issue.department);
 
-      const matchesDept = selectedDepartment
-        ? String(issueDeptId) === String(selectedDepartment)
-        : true;
+      if (officerDeptId && issueDeptId && issueDeptId !== officerDeptId) {
+        return false;
+      }
 
       const matchesStatus =
         statusFilter === "All"
@@ -269,14 +252,14 @@ function DepartmentDashboard() {
         issue.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         issue.description?.toLowerCase().includes(searchQuery.toLowerCase());
 
-      return matchesDept && matchesStatus && matchesSearch;
+      return matchesStatus && matchesSearch;
     });
-  }, [issues, selectedDepartment, statusFilter, searchQuery]);
+  }, [issues, officerDeptId, statusFilter, searchQuery]);
 
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedDepartment, statusFilter, searchQuery]);
+  }, [statusFilter, searchQuery]);
 
   // Paginated Complaints
   const totalDeptPages = Math.ceil(filteredIssues.length / pageSize) || 1;
@@ -287,23 +270,45 @@ function DepartmentDashboard() {
 
   // Statistics for Department
   const stats = useMemo(() => {
-    const relevant = selectedDepartment
+    const relevant = officerDeptId
       ? issues.filter((i) => {
           const deptId =
             typeof i.department === "object" && i.department !== null
-              ? i.department._id
-              : i.department;
-          return String(deptId) === String(selectedDepartment);
+              ? String(i.department._id)
+              : String(i.department);
+          return deptId === officerDeptId;
         })
       : issues;
 
     return {
       total: relevant.length,
-      inProgress: relevant.filter((i) => i.status === "In Progress").length,
-      assigned: relevant.filter((i) => i.status !== "In Progress" && i.status !== "Resolved").length,
-      resolved: relevant.filter((i) => i.status === "Resolved").length,
+      inProgress: relevant.filter((i) => i.status === "In Progress" && !i.resolvedPhoto).length,
+      assigned: relevant.filter(
+        (i) => i.status !== "In Progress" && i.status !== "Resolved" && !i.resolvedPhoto
+      ).length,
+      resolved: relevant.filter((i) => i.status === "Resolved" || !!i.resolvedPhoto).length,
     };
-  }, [issues, selectedDepartment]);
+  }, [issues, officerDeptId]);
+
+  const getDisplayStatus = (status, hasResolvedPhoto) => {
+    if (hasResolvedPhoto || status === "Resolved") {
+      return "RESOLVED";
+    }
+    if (status === "In Progress") {
+      return "IN PROGRESS";
+    }
+    return "PENDING ACTION";
+  };
+
+  const getStatusBadgeClass = (status, hasResolvedPhoto) => {
+    if (hasResolvedPhoto || status === "Resolved") {
+      return "status-resolved";
+    }
+    if (status === "In Progress") {
+      return "status-in-progress";
+    }
+    return "status-pending-action";
+  };
 
   const getCategoryIcon = (category) => {
     if (!category) return "⚠️";
@@ -313,6 +318,7 @@ function DepartmentDashboard() {
     if (lower.includes("garbage") || lower.includes("waste")) return "🗑️";
     if (lower.includes("water")) return "🚰";
     if (lower.includes("drainage")) return "🌊";
+    if (lower.includes("safety") || lower.includes("public")) return "🚨";
     return "📍";
   };
 
@@ -323,11 +329,10 @@ function DepartmentDashboard() {
     if (lower.includes("water") || lower.includes("drain")) return "🚰";
     if (lower.includes("road") || lower.includes("infra")) return "🚧";
     if (lower.includes("sanitat") || lower.includes("waste") || lower.includes("garbage")) return "🗑️";
+    if (lower.includes("safety") || lower.includes("public")) return "🛡️";
+    if (lower.includes("plumb")) return "🔧";
+    if (lower.includes("test")) return "🧪";
     return "🏢";
-  };
-
-  const getStatusClass = (status) => {
-    return `status-${(status || "submitted").toLowerCase().replace(/\s+/g, "-")}`;
   };
 
   const getPhotoUrl = (path) => {
@@ -429,19 +434,18 @@ function DepartmentDashboard() {
             <button
               className="dept-nav-item active"
               onClick={() => {
-                setSelectedDepartment("");
                 setStatusFilter("All");
                 setSearchQuery("");
                 setIsMobileOpen(false);
               }}
-              title="Complaints Center - View All Complaints"
+              title="Complaints Center - View Assigned Complaints"
             >
               <span className="nav-item-icon">📋</span>
               {!isCollapsed && (
                 <span className="nav-item-label">Complaints Center</span>
               )}
               {!isCollapsed && (
-                <span className="nav-item-badge">{issues.length}</span>
+                <span className="nav-item-badge">{stats.total}</span>
               )}
             </button>
           </div>
@@ -525,19 +529,6 @@ function DepartmentDashboard() {
                 </button>
               )}
             </div>
-
-            {/* Refresh Button */}
-            <button
-              className="btn-refresh"
-              onClick={() => {
-                setLoading(true);
-                fetchIssues();
-                fetchDepartments();
-              }}
-              title="Refresh complaint data"
-            >
-              🔄 Refresh
-            </button>
           </div>
         </header>
 
@@ -616,29 +607,6 @@ function DepartmentDashboard() {
           <div className="complaints-center-toolbar">
             <div className="toolbar-left-controls">
               <div className="toolbar-control-group">
-                <label className="toolbar-control-label" htmlFor="dept-select-filter">
-                  <span className="toolbar-icon">🏢</span> Department:
-                </label>
-                <select
-                  id="dept-select-filter"
-                  className="toolbar-select toolbar-select-dept"
-                  value={selectedDepartment}
-                  onChange={(e) => setSelectedDepartment(e.target.value)}
-                  title="Filter complaints by department"
-                >
-                  <option value="">🌐 All Departments ({issues.length})</option>
-                  {departments.map((dept) => {
-                    const count = deptIssueCounts[String(dept._id)] || 0;
-                    return (
-                      <option key={dept._id} value={String(dept._id)}>
-                        {getDeptIcon(dept.name)} {dept.name} ({count})
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-
-              <div className="toolbar-control-group">
                 <label className="toolbar-control-label" htmlFor="status-select-filter">
                   <span className="toolbar-icon">⚡</span> Status:
                 </label>
@@ -655,6 +623,17 @@ function DepartmentDashboard() {
                   <option value="Resolved">✨ Resolved ({stats.resolved})</option>
                 </select>
               </div>
+
+              <span
+                style={{
+                  fontSize: "13px",
+                  color: "var(--text-muted)",
+                  fontWeight: 600,
+                  marginLeft: "8px",
+                }}
+              >
+                Showing {filteredIssues.length} of {stats.total} Complaints
+              </span>
             </div>
 
             <div className="toolbar-right-meta">
@@ -665,26 +644,25 @@ function DepartmentDashboard() {
                   onClick={() => setViewMode("table")}
                   title="Professional Table View"
                 >
-                  📋 Table
+                  📋 
                 </button>
                 <button
                   className={`view-toggle-btn ${viewMode === "cards" ? "active" : ""}`}
                   onClick={() => setViewMode("cards")}
                   title="Executive Card Grid"
                 >
-                  🗂️ Cards
+                  🗂️ 
                 </button>
               </div>
 
-              {(selectedDepartment || statusFilter !== "All" || searchQuery) && (
+              {(statusFilter !== "All" || searchQuery) && (
                 <button
                   className="btn-toolbar-reset"
                   onClick={() => {
-                    setSelectedDepartment("");
                     setStatusFilter("All");
                     setSearchQuery("");
                   }}
-                  title="Reset all filters to show all complaints"
+                  title="Reset all filters"
                 >
                   ✕ Reset to All
                 </button>
@@ -706,7 +684,7 @@ function DepartmentDashboard() {
               <div className="empty-icon">📂</div>
               <h3>No Complaints Found</h3>
               <p>
-                {selectedDepartment
+                {currentDept
                   ? `No complaints currently match filters for ${
                       currentDept?.name || "this department"
                     }.`
@@ -721,16 +699,15 @@ function DepartmentDashboard() {
               >
                 💡 Tip: Admins can assign newly reported issues to departments from the Admin Dashboard.
               </p>
-              {(searchQuery || statusFilter !== "All" || selectedDepartment) && (
+              {(searchQuery || statusFilter !== "All") && (
                 <button
                   className="btn-reset-filters"
                   onClick={() => {
                     setSearchQuery("");
                     setStatusFilter("All");
-                    setSelectedDepartment("");
                   }}
                 >
-                  Show All Complaints
+                  Reset Filters
                 </button>
               )}
             </div>
@@ -747,24 +724,15 @@ function DepartmentDashboard() {
                     <tr>
                       <th className="col-id">Complaint ID</th>
                       <th className="col-info">Category & Title</th>
-                      <th className="col-dept">Department</th>
                       <th className="col-loc">Location</th>
                       <th className="col-date">Reported Date</th>
-                      <th className="col-photo">Photo Proof</th>
+                      <th className="col-photo">Photos & Proof</th>
                       <th className="col-status">Current Status</th>
                       <th className="col-action">Action / Resolution</th>
                     </tr>
                   </thead>
                   <tbody>
                     {paginatedIssues.map((issue) => {
-                      const assignedDept = departments.find(
-                        (d) =>
-                          d._id ===
-                          (typeof issue.department === "object" && issue.department !== null
-                            ? issue.department._id
-                            : issue.department)
-                      );
-
                       return (
                         <tr
                           key={issue._id}
@@ -801,13 +769,6 @@ function DepartmentDashboard() {
                                 {issue.description}
                               </span>
                             </div>
-                          </td>
-
-                          {/* Department */}
-                          <td>
-                            <span className={`dept-badge ${assignedDept ? "assigned" : "unassigned"}`}>
-                              {assignedDept ? assignedDept.name : "Not Assigned"}
-                            </span>
                           </td>
 
                           {/* Location */}
@@ -893,9 +854,9 @@ function DepartmentDashboard() {
 
                           {/* Status */}
                           <td>
-                            <span className={`pro-status-badge ${getStatusClass(issue.status)}`}>
+                            <span className={`pro-status-badge ${getStatusBadgeClass(issue.status, !!issue.resolvedPhoto)}`}>
                               <span className="status-dot"></span>
-                              {issue.status || "Submitted"}
+                              {getDisplayStatus(issue.status, !!issue.resolvedPhoto)}
                             </span>
                           </td>
 
@@ -904,14 +865,24 @@ function DepartmentDashboard() {
                             <div className="td-action-group">
                               <select
                                 className="td-action-select"
-                                value={issue.status || "Submitted"}
+                                value={
+                                  issue.status === "In Progress"
+                                    ? "In Progress"
+                                    : issue.status === "Resolved" || issue.resolvedPhoto
+                                    ? "Resolved"
+                                    : "Submitted"
+                                }
                                 onChange={(e) => handleStatusChange(issue._id, e.target.value)}
                               >
-                                <option value="Submitted">Submitted</option>
-                                <option value="Verified">Verified</option>
-                                <option value="Assigned">Assigned</option>
+                                <option value="Submitted">Pending Action</option>
                                 <option value="In Progress">In Progress</option>
-                                <option value="Resolved">Resolved</option>
+                                {issue.resolvedPhoto ? (
+                                  <option value="Resolved">Resolved</option>
+                                ) : (
+                                  <option value="Resolved" disabled style={{ color: "#64748b" }}>
+                                    Resolved (Proof Required)
+                                  </option>
+                                )}
                               </select>
 
                               <label
@@ -981,14 +952,6 @@ function DepartmentDashboard() {
           {!loading && filteredIssues.length > 0 && viewMode === "cards" && (
             <div className="dashboard-cards-grid">
               {paginatedIssues.map((issue) => {
-                const assignedDept = departments.find(
-                  (d) =>
-                    d._id ===
-                    (typeof issue.department === "object" && issue.department !== null
-                      ? issue.department._id
-                      : issue.department)
-                );
-
                 return (
                   <div
                     className={`dashboard-card ${
@@ -1008,9 +971,9 @@ function DepartmentDashboard() {
                       </span>
 
                       <div className="card-top-right-group">
-                        <span className={`pro-status-badge ${getStatusClass(issue.status)}`}>
+                        <span className={`pro-status-badge ${getStatusBadgeClass(issue.status, !!issue.resolvedPhoto)}`}>
                           <span className="status-dot"></span>
-                          {issue.status || "Submitted"}
+                          {getDisplayStatus(issue.status, !!issue.resolvedPhoto)}
                         </span>
                         <span
                           className="id-chip"
@@ -1059,10 +1022,6 @@ function DepartmentDashboard() {
                           📍 {Number(issue.latitude).toFixed(3)}, {Number(issue.longitude).toFixed(3)} ↗
                         </a>
                       )}
-
-                      <span className={`meta-chip ${assignedDept ? "assigned" : "unassigned"}`}>
-                        🏢 {assignedDept ? assignedDept.name : "Not Assigned"}
-                      </span>
                     </div>
 
                     {/* Compact Photos Strip */}
@@ -1166,17 +1125,27 @@ function DepartmentDashboard() {
                           Update Resolution Status
                         </label>
                         <select
-                          className={`status-select ${getStatusClass(issue.status)}`}
-                          value={issue.status || "Submitted"}
+                          className={`status-select ${getStatusBadgeClass(issue.status, !!issue.resolvedPhoto)}`}
+                          value={
+                            issue.status === "In Progress"
+                              ? "In Progress"
+                              : issue.status === "Resolved" || issue.resolvedPhoto
+                              ? "Resolved"
+                              : "Submitted"
+                          }
                           onChange={(e) =>
                             handleStatusChange(issue._id, e.target.value)
                           }
                         >
-                          <option value="Submitted">Submitted</option>
-                          <option value="Verified">Verified</option>
-                          <option value="Assigned">Assigned</option>
+                          <option value="Submitted">Pending Action</option>
                           <option value="In Progress">In Progress</option>
-                          <option value="Resolved">Resolved</option>
+                          {issue.resolvedPhoto ? (
+                            <option value="Resolved">Resolved</option>
+                          ) : (
+                            <option value="Resolved" disabled style={{ color: "#64748b" }}>
+                              Resolved (Proof Required)
+                            </option>
+                          )}
                         </select>
                       </div>
                     </div>

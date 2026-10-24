@@ -6,6 +6,7 @@ const path = require("path");
 const Issue = require("./models/Issue");
 const Department = require("./models/Department");
 const User = require("./models/User");
+const Feedback = require("./models/Feedback");
 require("dotenv").config();
 const auth = require("./middleware/auth");
 const cloudinary = require("cloudinary").v2;
@@ -42,8 +43,33 @@ const uploadToCloudinary = (fileBuffer, folder = "fixmycity") => {
   });
 };
 
+const allowedOrigins = [
+  "https://fix-my-city-bs3z.vercel.app",
+  "https://fix-my-city-bs3z.vercel.app/",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://127.0.0.1:5173",
+];
+
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+      const cleanOrigin = origin.replace(/\/$/, "");
+      const isAllowed = allowedOrigins.some(
+        (o) => o.replace(/\/$/, "") === cleanOrigin
+      );
+      if (isAllowed || origin.endsWith(".vercel.app")) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "user-id"],
+  })
+);
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
@@ -221,6 +247,21 @@ app.get("/api/issues", async (req, res) => {
       query.department = req.query.department;
     }
 
+    const userId = req.headers["user-id"] || req.query.userId;
+    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+      const requester = await User.findById(userId);
+      if (requester) {
+        if (requester.role === "user" || requester.role === "citizen") {
+          // Regular citizens only see their own complaints
+          query.user = requester._id;
+        } else if (requester.role === "department" && requester.department && !query.department) {
+          query.department = requester.department;
+        }
+      }
+    } else if (req.query.userId && mongoose.Types.ObjectId.isValid(req.query.userId)) {
+      query.user = req.query.userId;
+    }
+
     const issues = await Issue.find(query).sort({ createdAt: -1 });
     res.status(200).json(issues);
   } catch (error) {
@@ -236,17 +277,21 @@ app.put("/api/issues/:id/status", async (req, res) => {
   try {
     const { status } = req.body;
 
-    const issue = await Issue.findByIdAndUpdate(
-      req.params.id,
-      { status: status },
-      { new: true }
-    );
-
-    if (!issue) {
+    const existing = await Issue.findById(req.params.id);
+    if (!existing) {
       return res.status(404).json({
         message: "Complaint not found.",
       });
     }
+
+    if (status === "Resolved" && !existing.resolvedPhoto) {
+      return res.status(400).json({
+        message: "Photo proof of completed work is required before marking a complaint as Resolved.",
+      });
+    }
+
+    existing.status = status;
+    const issue = await existing.save();
 
     res.status(200).json({
       message: "Complaint status updated successfully!",
@@ -472,11 +517,8 @@ app.put("/api/issues/:id/resolved-photo", upload.single("resolvedPhoto"), async 
 
     const updateData = {
       resolvedPhoto: resolvedPhotoUrl,
+      status: "Resolved", // Completed work photo automatically resolves the complaint
     };
-
-    if (req.body.status) {
-      updateData.status = req.body.status;
-    }
 
     const issue = await Issue.findByIdAndUpdate(
       req.params.id,
@@ -499,6 +541,165 @@ app.put("/api/issues/:id/resolved-photo", upload.single("resolvedPhoto"), async 
 
     res.status(500).json({
       message: "Failed to upload resolved photo.",
+      error: error.message,
+    });
+  }
+});
+
+// Submit citizen feedback and rating for a resolved complaint
+app.post("/api/issues/:id/feedback", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rating, comment } = req.body;
+    const userId = req.headers["user-id"];
+
+    if (!rating || Number(rating) < 1 || Number(rating) > 5) {
+      return res.status(400).json({
+        message: "Please provide a valid rating between 1 and 5 stars.",
+      });
+    }
+
+    const issue = await Issue.findById(id);
+    if (!issue) {
+      return res.status(404).json({ message: "Complaint not found." });
+    }
+
+    // Check ownership if user-id provided
+    if (userId && issue.user && String(issue.user) !== String(userId)) {
+      return res.status(403).json({
+        message: "You can only submit feedback for your own complaints.",
+      });
+    }
+
+    if (issue.status !== "Resolved") {
+      return res.status(400).json({
+        message: "Feedback can only be submitted once the complaint is marked as Resolved.",
+      });
+    }
+
+    issue.feedback = {
+      rating: Math.round(Number(rating)),
+      comment: comment ? String(comment).trim() : "",
+      submittedAt: new Date(),
+    };
+
+    const updatedIssue = await issue.save();
+    console.log(`Feedback submitted for issue ${id}: rating=${rating}`);
+
+    res.status(200).json({
+      message: "Thank you! Your feedback and rating have been recorded.",
+      issue: updatedIssue,
+    });
+  } catch (error) {
+    console.error("Error submitting feedback:", error);
+    res.status(500).json({
+      message: "Failed to submit feedback.",
+      error: error.message,
+    });
+  }
+});
+
+// Citizen General & Issue Feedback Endpoint
+app.post("/api/feedback", async (req, res) => {
+  try {
+    const { issueId, rating, category, comment } = req.body;
+    const userId = req.headers["user-id"];
+
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(401).json({ message: "Authentication required to submit feedback." });
+    }
+
+    if (!rating || Number(rating) < 1 || Number(rating) > 5) {
+      return res.status(400).json({ message: "Please provide a valid rating between 1 and 5 stars." });
+    }
+
+    if (!comment || !comment.trim()) {
+      return res.status(400).json({ message: "Please write a comment or suggestion." });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    let issueDoc = null;
+    let issueTitle = "General Municipal / City Service";
+
+    if (issueId && mongoose.Types.ObjectId.isValid(issueId)) {
+      issueDoc = await Issue.findById(issueId);
+      if (issueDoc) {
+        issueTitle = issueDoc.title;
+        // Also sync issue.feedback
+        issueDoc.feedback = {
+          rating: Math.round(Number(rating)),
+          comment: comment.trim(),
+          submittedAt: new Date(),
+        };
+        await issueDoc.save();
+      }
+    }
+
+    const newFeedback = new Feedback({
+      user: user._id,
+      userName: user.name || "Citizen",
+      issue: issueDoc ? issueDoc._id : null,
+      issueTitle: issueTitle,
+      rating: Math.round(Number(rating)),
+      category: category || "Resolution Quality",
+      comment: comment.trim(),
+    });
+
+    const savedFeedback = await newFeedback.save();
+
+    res.status(201).json({
+      message: "Thank you! Your feedback and rating have been recorded.",
+      feedback: savedFeedback,
+    });
+  } catch (error) {
+    console.error("Error creating feedback:", error);
+    res.status(500).json({
+      message: "Failed to submit feedback.",
+      error: error.message,
+    });
+  }
+});
+
+// Get feedback list (Citizen sees their own, Admin sees all)
+app.get("/api/feedback", async (req, res) => {
+  try {
+    const userId = req.headers["user-id"];
+    let query = {};
+
+    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+      const user = await User.findById(userId);
+      if (user && user.role === "user") {
+        query.user = user._id;
+      }
+    }
+
+    const list = await Feedback.find(query).populate("user", "name email").sort({ createdAt: -1 });
+    res.status(200).json(list);
+  } catch (error) {
+    console.error("Error fetching feedback:", error);
+    res.status(500).json({
+      message: "Failed to fetch feedback.",
+      error: error.message,
+    });
+  }
+});
+
+// Delete feedback entry (Admin)
+app.delete("/api/feedback/:id", async (req, res) => {
+  try {
+    const deleted = await Feedback.findByIdAndDelete(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ message: "Feedback not found." });
+    }
+    res.status(200).json({ message: "Feedback removed successfully." });
+  } catch (error) {
+    console.error("Error deleting feedback:", error);
+    res.status(500).json({
+      message: "Failed to delete feedback.",
       error: error.message,
     });
   }
