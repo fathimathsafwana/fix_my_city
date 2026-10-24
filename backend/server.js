@@ -272,7 +272,10 @@ app.get("/api/issues", async (req, res) => {
       query.user = req.query.userId;
     }
 
-    const issues = await Issue.find(query).sort({ createdAt: -1 });
+    const issues = await Issue.find(query)
+      .populate("user", "name email")
+      .populate("department")
+      .sort({ createdAt: -1 });
     res.status(200).json(issues);
   } catch (error) {
     console.error("Error fetching issues:", error);

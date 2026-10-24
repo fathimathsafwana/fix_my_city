@@ -1399,9 +1399,15 @@ function AdminDashboard() {
                   </span>
                 </div>
                 <div>
-                  <span style={{ fontSize: "11px", color: "#94a3b8", display: "block" }}>CATEGORY</span>
-                  <span className="category-pill" style={{ padding: "2px 8px", fontSize: "12px" }}>
-                    {getCategoryIcon(viewingIssue.category)} {viewingIssue.category || "General"}
+                  <span style={{ fontSize: "11px", color: "#94a3b8", display: "block" }}>USER NAME</span>
+                  <span style={{ color: "#f1f5f9", fontWeight: "600", fontSize: "13px" }}>
+                    👤 {
+                      (typeof viewingIssue.user === "object" && viewingIssue.user !== null
+                        ? viewingIssue.user.name
+                        : users.find((u) => u._id === viewingIssue.user)?.name) ||
+                      viewingIssue.userName ||
+                      "Citizen"
+                    }
                   </span>
                 </div>
                 <div>
