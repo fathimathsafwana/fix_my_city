@@ -1201,52 +1201,14 @@ function AdminDashboard() {
                 </div>
               )}
 
-              {/* Statistics Grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                <div style={{ background: "rgba(56, 189, 248, 0.08)", border: "1px solid rgba(56, 189, 248, 0.2)", borderRadius: "8px", padding: "12px" }}>
-                  <div style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 700 }}>
-                    Assigned Complaints
-                  </div>
-                  <div style={{ fontSize: "20px", fontWeight: 800, color: "#38bdf8", marginTop: "4px" }}>
-                    {issues.filter((i) => (typeof i.department === "object" && i.department !== null ? i.department._id : i.department) === viewingDept._id).length}
-                  </div>
+              {/* Assigned Complaints Statistic */}
+              <div style={{ background: "rgba(56, 189, 248, 0.08)", border: "1px solid rgba(56, 189, 248, 0.2)", borderRadius: "8px", padding: "12px" }}>
+                <div style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 700 }}>
+                  Assigned Complaints
                 </div>
-
-                <div style={{ background: "rgba(168, 85, 247, 0.08)", border: "1px solid rgba(168, 85, 247, 0.2)", borderRadius: "8px", padding: "12px" }}>
-                  <div style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 700 }}>
-                    Assigned Staff Members
-                  </div>
-                  <div style={{ fontSize: "20px", fontWeight: 800, color: "#c084fc", marginTop: "4px" }}>
-                    {users.filter((u) => u.role === "department" && (typeof u.department === "object" && u.department !== null ? u.department._id : u.department) === viewingDept._id).length}
-                  </div>
+                <div style={{ fontSize: "20px", fontWeight: 800, color: "#38bdf8", marginTop: "4px" }}>
+                  {issues.filter((i) => (typeof i.department === "object" && i.department !== null ? i.department._id : i.department) === viewingDept._id).length}
                 </div>
-              </div>
-
-              {/* Staff List */}
-              <div>
-                <label style={{ fontSize: "11px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>
-                  Assigned Staff Officers
-                </label>
-                {(() => {
-                  const staff = users.filter((u) => u.role === "department" && (typeof u.department === "object" && u.department !== null ? u.department._id : u.department) === viewingDept._id);
-                  if (staff.length === 0) {
-                    return (
-                      <div style={{ fontSize: "12.5px", color: "#94a3b8", fontStyle: "italic", padding: "8px 0" }}>
-                        No staff officers assigned to this department yet. You can assign staff in "Manage Users".
-                      </div>
-                    );
-                  }
-                  return (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                      {staff.map((s) => (
-                        <div key={s._id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "6px", padding: "8px 12px" }}>
-                          <span style={{ color: "#f8fafc", fontWeight: 600, fontSize: "13px" }}>👤 {s.name}</span>
-                          <span style={{ color: "#94a3b8", fontSize: "12px" }}>{s.email}</span>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
               </div>
 
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px", paddingTop: "14px", borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}>
