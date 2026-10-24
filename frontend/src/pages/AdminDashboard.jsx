@@ -1400,15 +1400,27 @@ function AdminDashboard() {
                 </div>
                 <div>
                   <span style={{ fontSize: "11px", color: "#94a3b8", display: "block" }}>USER NAME</span>
-                  <span style={{ color: "#f1f5f9", fontWeight: "600", fontSize: "13px" }}>
-                    👤 {
-                      (typeof viewingIssue.user === "object" && viewingIssue.user !== null
-                        ? viewingIssue.user.name
-                        : users.find((u) => u._id === viewingIssue.user)?.name) ||
-                      viewingIssue.userName ||
-                      "Citizen"
-                    }
-                  </span>
+                  {(() => {
+                    const citizenObj =
+                      typeof viewingIssue.user === "object" && viewingIssue.user !== null
+                        ? viewingIssue.user
+                        : users.find((u) => u._id === viewingIssue.user);
+                    const citizenName = citizenObj?.name || viewingIssue.userName || "Citizen";
+                    const citizenEmail = citizenObj?.email;
+
+                    return (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                        <span style={{ color: "#f1f5f9", fontWeight: "600", fontSize: "13px" }}>
+                          👤 {citizenName}
+                        </span>
+                        {citizenEmail && (
+                          <span style={{ color: "#38bdf8", fontSize: "11.5px", fontWeight: "500" }}>
+                            ✉️ {citizenEmail}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div>
                   <span style={{ fontSize: "11px", color: "#94a3b8", display: "block" }}>DEPARTMENT</span>
