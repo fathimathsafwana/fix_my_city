@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "../context/useToast";
 import Pagination from "../components/Pagination";
+import { API_BASE_URL } from "../config";
 
 function DepartmentDashboard() {
   const { showToast } = useToast();
@@ -71,7 +72,7 @@ function DepartmentDashboard() {
   };
 
   const fetchIssues = () => {
-    fetch("http://localhost:5000/api/issues", {
+    fetch(`${API_BASE_URL}/api/issues`, {
       headers: getAuthHeaders(),
     })
       .then((response) => response.json())
@@ -86,7 +87,7 @@ function DepartmentDashboard() {
   };
 
   const fetchDepartments = () => {
-    fetch("http://localhost:5000/api/departments")
+    fetch(`${API_BASE_URL}/api/departments`)
       .then((response) => response.json())
       .then((data) => {
         const depts = Array.isArray(data) ? data : [];
@@ -112,7 +113,7 @@ function DepartmentDashboard() {
     setUpdatingId(issueId);
     try {
       const response = await fetch(
-        `http://localhost:5000/api/issues/${issueId}/status`,
+        `${API_BASE_URL}/api/issues/${issueId}/status`,
         {
           method: "PUT",
           headers: {
@@ -181,7 +182,7 @@ function DepartmentDashboard() {
       formData.append("status", "Resolved");
 
       const response = await fetch(
-        `http://localhost:5000/api/issues/${issueId}/resolved-photo`,
+        `${API_BASE_URL}/api/issues/${issueId}/resolved-photo`,
         {
           method: "PUT",
           headers: getAuthHeaders(),
@@ -340,7 +341,7 @@ function DepartmentDashboard() {
     if (path.startsWith("http://") || path.startsWith("https://")) {
       return path;
     }
-    return `http://localhost:5000${path}`;
+    return `${API_BASE_URL}${path}`;
   };
 
   return (
@@ -914,7 +915,7 @@ function DepartmentDashboard() {
                                     formData.append("resolvedPhoto", file);
                                     formData.append("status", "Resolved");
                                     setUploadingPhotoId(issue._id);
-                                    fetch(`http://localhost:5000/api/issues/${issue._id}/resolved-photo`, {
+                                    fetch(`${API_BASE_URL}/api/issues/${issue._id}/resolved-photo`, {
                                       method: "PUT",
                                       headers: getAuthHeaders(),
                                       body: formData,

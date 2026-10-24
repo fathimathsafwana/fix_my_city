@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { useToast } from "../context/useToast";
+import { API_BASE_URL } from "../config";
 
 function ReportIssue() {
   const { showToast } = useToast();
@@ -104,7 +105,7 @@ function ReportIssue() {
         }
       } catch (e) {}
 
-      const response = await fetch("http://localhost:5000/api/issues", {
+      const response = await fetch(`${API_BASE_URL}/api/issues`, {
         method: "POST",
         headers: headers,
         body: formData,

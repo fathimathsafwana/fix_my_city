@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { useToast } from "../context/useToast";
+import { API_BASE_URL } from "../config";
 
 const TRACKING_STEPS = [
     { key: "Submitted", label: "Submitted", icon: "📝", desc: "Logged in portal" },
@@ -59,11 +60,11 @@ function TrackComplaint() {
 
         // Fetch issues and departments in parallel
         Promise.all([
-            fetch("http://localhost:5000/api/issues", { headers }).then((res) => {
+            fetch(`${API_BASE_URL}/api/issues`, { headers }).then((res) => {
                 if (!res.ok) throw new Error("Failed to fetch complaints");
                 return res.json();
             }),
-            fetch("http://localhost:5000/api/departments").then((res) => {
+            fetch(`${API_BASE_URL}/api/departments`).then((res) => {
                 return res.ok ? res.json() : [];
             }).catch(() => []),
         ])
@@ -110,7 +111,7 @@ function TrackComplaint() {
     const getLocationName = async (latitude, longitude, issueId) => {
         try {
             const response = await fetch(
-                `http://localhost:5000/api/location?latitude=${latitude}&longitude=${longitude}`
+                `${API_BASE_URL}/api/location?latitude=${latitude}&longitude=${longitude}`
             );
 
             if (!response.ok) {
@@ -214,7 +215,7 @@ function TrackComplaint() {
 
         setSavingEdit(true);
         try {
-            const response = await fetch(`http://localhost:5000/api/issues/${issueId}`, {
+            const response = await fetch(`${API_BASE_URL}/api/issues/${issueId}`, {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
@@ -252,7 +253,7 @@ function TrackComplaint() {
         if (path.startsWith("http://") || path.startsWith("https://")) {
             return path;
         }
-        return `http://localhost:5000${path}`;
+        return `${API_BASE_URL}${path}`;
     };
 
     return (

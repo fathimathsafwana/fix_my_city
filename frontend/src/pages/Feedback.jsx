@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import { useToast } from "../context/useToast";
+import { API_BASE_URL } from "../config";
 
 function Feedback() {
   const { showToast } = useToast();
@@ -30,7 +31,7 @@ function Feedback() {
     const headers = getAuthHeaders();
 
     // 1. Fetch user issues
-    fetch("http://localhost:5000/api/issues", { headers })
+    fetch(`${API_BASE_URL}/api/issues`, { headers })
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         setIssues(Array.isArray(data) ? data : []);
@@ -44,7 +45,7 @@ function Feedback() {
   const fetchFeedbackHistory = () => {
     const headers = getAuthHeaders();
     setLoadingHistory(true);
-    fetch("http://localhost:5000/api/feedback", { headers })
+    fetch(`${API_BASE_URL}/api/feedback`, { headers })
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         setFeedbackHistory(Array.isArray(data) ? data : []);
@@ -76,7 +77,7 @@ function Feedback() {
 
     setSubmitting(true);
     try {
-      const response = await fetch("http://localhost:5000/api/feedback", {
+      const response = await fetch(`${API_BASE_URL}/api/feedback`, {
         method: "POST",
         headers,
         body: JSON.stringify({

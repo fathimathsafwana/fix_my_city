@@ -12,9 +12,9 @@ const auth = require("./middleware/auth");
 const cloudinary = require("cloudinary").v2;
 
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "mlfq6her",
-  api_key: process.env.CLOUDINARY_API_KEY || "629429368993423",
-  api_secret: process.env.CLOUDINARY_API_SECRET || "O836ez1zTtBxlSgLrzyHxSEHdCg",
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
 const storage = multer.memoryStorage();
@@ -43,10 +43,18 @@ const uploadToCloudinary = (fileBuffer, folder = "fixmycity") => {
   });
 };
 
-const allowedOrigins = [
-  "https://fix-my-city-bs3z.vercel.app",
-  "http://localhost:5173",
-];
+const rawOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
+  : [
+      process.env.FRONTEND_URL || "https://fix-my-city-seven.vercel.app",
+      "https://fix-my-city-seven.vercel.app",
+      "https://fix-my-city-bs3z.vercel.app",
+      "http://localhost:5173",
+    ];
+
+const allowedOrigins = Array.from(
+  new Set(rawOrigins.flatMap((o) => [o.replace(/\/$/, ""), `${o.replace(/\/$/, "")}/`]))
+);
 
 const app = express();
 app.use(
@@ -58,7 +66,7 @@ app.use(
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => {

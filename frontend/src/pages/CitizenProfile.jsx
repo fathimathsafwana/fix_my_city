@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { useToast } from "../context/useToast";
+import { API_BASE_URL } from "../config";
 
 function CitizenProfile() {
   const { showToast } = useToast();
@@ -34,7 +35,7 @@ function CitizenProfile() {
     setLoading(true);
     try {
       if (userId) {
-        const res = await fetch(`http://localhost:5000/api/users/${userId}`);
+        const res = await fetch(`${API_BASE_URL}/api/users/${userId}`);
         if (res.ok) {
           const fresh = await res.json();
           setUser((prev) => ({ ...prev, ...fresh }));
@@ -69,7 +70,7 @@ function CitizenProfile() {
         payload.password = password;
       }
 
-      const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

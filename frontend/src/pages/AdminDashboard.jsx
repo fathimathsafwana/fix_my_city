@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "../context/useToast";
 import Pagination from "../components/Pagination";
+import { API_BASE_URL } from "../config";
 
 function AdminDashboard() {
   const { showToast } = useToast();
@@ -125,7 +126,7 @@ function AdminDashboard() {
   };
 
   const fetchIssues = () => {
-    fetch("http://localhost:5000/api/issues", {
+    fetch(`${API_BASE_URL}/api/issues`, {
       headers: getAuthHeaders(),
     })
       .then((response) => response.json())
@@ -140,7 +141,7 @@ function AdminDashboard() {
   };
 
   const fetchDepartments = () => {
-    fetch("http://localhost:5000/api/departments", {
+    fetch(`${API_BASE_URL}/api/departments`, {
       headers: getAuthHeaders(),
     })
       .then((response) => response.json())
@@ -154,7 +155,7 @@ function AdminDashboard() {
 
   const fetchUsers = () => {
     setLoadingUsers(true);
-    fetch("http://localhost:5000/api/users", {
+    fetch(`${API_BASE_URL}/api/users`, {
       headers: getAuthHeaders(),
     })
       .then((res) => res.json())
@@ -171,7 +172,7 @@ function AdminDashboard() {
   const fetchFeedbacks = async () => {
     setLoadingFeedbacks(true);
     try {
-      const response = await fetch("http://localhost:5000/api/feedback", {
+      const response = await fetch(`${API_BASE_URL}/api/feedback`, {
         headers: getAuthHeaders(),
       });
       if (!response.ok) throw new Error("Failed to fetch feedback.");
@@ -196,7 +197,7 @@ function AdminDashboard() {
     setUpdatingId(issueId);
     try {
       const response = await fetch(
-        `http://localhost:5000/api/issues/${issueId}/status`,
+        `${API_BASE_URL}/api/issues/${issueId}/status`,
         {
           method: "PUT",
           headers: {
@@ -228,7 +229,7 @@ function AdminDashboard() {
     setUpdatingId(issueId);
     try {
       const response = await fetch(
-        `http://localhost:5000/api/issues/${issueId}/department`,
+        `${API_BASE_URL}/api/issues/${issueId}/department`,
         {
           method: "PUT",
           headers: {
@@ -269,7 +270,7 @@ function AdminDashboard() {
 
     setCreatingUser(true);
     try {
-      const response = await fetch("http://localhost:5000/api/users", {
+      const response = await fetch(`${API_BASE_URL}/api/users`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -325,7 +326,7 @@ function AdminDashboard() {
 
     setCreatingDept(true);
     try {
-      const response = await fetch("http://localhost:5000/api/departments", {
+      const response = await fetch(`${API_BASE_URL}/api/departments`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -371,7 +372,7 @@ function AdminDashboard() {
     if (!editingIssue) return;
     setSavingEdit(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/issues/${editingIssue._id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/issues/${editingIssue._id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -412,7 +413,7 @@ function AdminDashboard() {
     if (!confirmed) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/issues/${issueId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/issues/${issueId}`, {
         method: "DELETE",
         headers: {
           ...getAuthHeaders(),
@@ -455,7 +456,7 @@ function AdminDashboard() {
 
     setSavingDept(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/departments/${editingDept._id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/departments/${editingDept._id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -493,7 +494,7 @@ function AdminDashboard() {
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/api/departments/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/departments/${id}`, {
         method: "DELETE",
         headers: getAuthHeaders(),
       });
@@ -517,7 +518,7 @@ function AdminDashboard() {
     try {
       const payload = { role: newRole };
 
-      const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -544,7 +545,7 @@ function AdminDashboard() {
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
         method: "DELETE",
         headers: getAuthHeaders(),
       });
@@ -568,7 +569,7 @@ function AdminDashboard() {
       return;
     }
     try {
-      const response = await fetch(`http://localhost:5000/api/feedback/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/feedback/${id}`, {
         method: "DELETE",
         headers: getAuthHeaders(),
       });
@@ -759,7 +760,7 @@ function AdminDashboard() {
     if (path.startsWith("http://") || path.startsWith("https://")) {
       return path;
     }
-    return `http://localhost:5000${path}`;
+    return `${API_BASE_URL}${path}`;
   };
 
   // Feedback Statistics
