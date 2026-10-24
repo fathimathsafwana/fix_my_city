@@ -2360,6 +2360,10 @@ body {
   margin: 0 auto;
 }
 
+.department-page .dashboard-container {
+  max-width: 1440px;
+}
+
 /* Dashboard Header */
 .dashboard-header {
   display: flex;
@@ -4980,6 +4984,7 @@ select option {
 }
 
 /* Department Active Mode (Neon) */
+.department-page .view-toggle-btn.active,
 .dept-sidebar-layout:not(.admin-sidebar-theme) .view-toggle-btn.active {
   background: var(--neon) !important;
   color: #000000 !important;
@@ -5999,6 +6004,7 @@ select option {
 }
 
 /* Active Page in Department Theme (Neon) */
+.department-page .pagination-page-btn.active,
 .dept-sidebar-layout:not(.admin-sidebar-theme) .pagination-page-btn.active {
   background: var(--neon) !important;
   border-color: var(--neon) !important;

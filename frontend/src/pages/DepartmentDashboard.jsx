@@ -1042,8 +1042,7 @@ function DepartmentDashboard() {
               pageSizeOptions={[5, 10, 20]}
             />
           )}
-        </div>
-      </main>
+      </div>
     </div>
   );
 }
