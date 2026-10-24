@@ -57,6 +57,16 @@ const allowedOrigins = Array.from(
 );
 
 const app = express();
+
+// Support Chrome Private Network Access (PNA) when https://*.vercel.app accesses local backend
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Private-Network", "true");
+  if (req.method === "OPTIONS") {
+    res.setHeader("Access-Control-Allow-Private-Network", "true");
+  }
+  next();
+});
+
 app.use(
   cors({
     origin: allowedOrigins,
