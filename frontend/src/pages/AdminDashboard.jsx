@@ -2175,7 +2175,7 @@ function AdminDashboard() {
                     <table className="pro-table">
                       <thead>
                         <tr>
-                          <th className="col-id">Complaint ID</th>
+                          <th className="col-id">ID</th>
                           <th className="col-info">Title</th>
                           <th className="col-dept">Department</th>
                           <th className="col-date">Reported Date</th>
@@ -2207,7 +2207,7 @@ function AdminDashboard() {
                                     showToast("Complaint ID copied!");
                                   }}
                                 >
-                                  📋 #{issue._id ? issue._id.slice(-6) : "ID"}
+                                  #{issue._id ? issue._id.slice(-6) : "ID"}
                                 </span>
                               </td>
 
@@ -2567,6 +2567,7 @@ function AdminDashboard() {
                     <table className="pro-table">
                       <thead>
                         <tr>
+                          <th style={{ width: "120px" }}>ID</th>
                           <th>Name</th>
                           <th>Email</th>
                           <th>Created At</th>
@@ -2578,6 +2579,20 @@ function AdminDashboard() {
                         {paginatedUsers.map((u) => {
                           return (
                             <tr key={u._id}>
+                              {/* ID */}
+                              <td>
+                                <span
+                                  className="td-id-chip"
+                                  title="Click to copy ID"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(u._id);
+                                    showToast("User ID copied!");
+                                  }}
+                                >
+                                  #{u._id ? u._id.slice(-6) : "ID"}
+                                </span>
+                              </td>
+
                               {/* Name */}
                               <td>
                                 <div className="user-cell-wrap">
@@ -2884,6 +2899,7 @@ function AdminDashboard() {
                     <table className="pro-table">
                       <thead>
                         <tr>
+                          <th style={{ width: "120px" }}>ID</th>
                           <th>Department Name</th>
                           <th>Email</th>
                           <th style={{ width: "160px" }}>Created Date</th>
@@ -2902,22 +2918,33 @@ function AdminDashboard() {
 
                           return (
                             <tr key={dept._id}>
+                              {/* ID */}
+                              <td>
+                                <span
+                                  className="td-id-chip"
+                                  title="Click to copy ID"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(dept._id);
+                                    showToast("Department ID copied!");
+                                  }}
+                                >
+                                  #{dept._id ? dept._id.slice(-6) : "ID"}
+                                </span>
+                              </td>
+
                               <td>
                                 <div className="dept-name-cell">
                                   <div className="dept-name-details">
                                     <span className="dept-title-text">
                                       {dept.name}
                                     </span>
-                                    <div className="dept-meta-subrow">
-                                      <span className="dept-code-pill">
-                                        ID: {dept._id?.slice(-6)}
-                                      </span>
-                                      {deptOfficer?.password && (
+                                    {deptOfficer?.password && (
+                                      <div className="dept-meta-subrow">
                                         <span className="dept-email-pill" style={{ color: "#a3e635", borderColor: "rgba(163, 230, 53, 0.3)" }}>
                                           🔑 {deptOfficer.password}
                                         </span>
-                                      )}
-                                    </div>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               </td>

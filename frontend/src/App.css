@@ -4684,6 +4684,27 @@ select option {
 
 /* Complaints Table Column Widths */
 .pro-table .col-id { width: 110px; }
+
+.td-id-chip {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  padding: 3px 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.td-id-chip:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+}
 .pro-table .col-info { width: 250px; }
 .pro-table .col-dept { width: 160px; }
 .pro-table .col-loc { width: 130px; }
