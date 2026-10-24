@@ -2262,6 +2262,12 @@ body {
   box-shadow: 0 0 8px rgba(204, 255, 0, 0.2);
 }
 
+.status-rejected {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
 /* =========================================================
    RESPONSIVE
    ========================================================= */
@@ -3614,6 +3620,21 @@ body {
   border-color: rgba(255, 59, 59, 0.3);
 }
 
+/* Sidebar Footer Officer Profile (Simplified Admin in footer) */
+.sidebar-action-btn.admin-footer-badge {
+  background: rgba(56, 189, 248, 0.07);
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  color: #f1f5f9;
+  padding: 7px 10px;
+}
+
+.admin-footer-name {
+  color: #f1f5f9;
+  font-weight: 700;
+  font-size: 13.5px;
+  letter-spacing: 0.2px;
+}
+
 /* =========================================================
    MAIN CONTENT AREA
    ========================================================= */
@@ -3932,6 +3953,66 @@ body {
   box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
 }
 
+/* Toolbar Search inside Complaints & Admin Center Toolbar */
+.complaints-center-toolbar .toolbar-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 250px;
+  max-width: 360px;
+  flex: 1 1 250px;
+}
+
+.complaints-center-toolbar .toolbar-search input {
+  width: 100%;
+  padding: 8.5px 34px 8.5px 36px;
+  background: #0d1117;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  color: #f1f5f9;
+  font-size: 13.5px;
+  font-weight: 500;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.complaints-center-toolbar .toolbar-search input:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
+  background: #090d16;
+}
+
+.complaints-center-toolbar .toolbar-search input::placeholder {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.complaints-center-toolbar .toolbar-search .search-icon {
+  position: absolute;
+  left: 12px;
+  font-size: 14px;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.complaints-center-toolbar .toolbar-search .clear-search-btn {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 6px;
+  border-radius: 50%;
+  transition: color 0.2s, background 0.2s;
+}
+
+.complaints-center-toolbar .toolbar-search .clear-search-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
 @media (max-width: 900px) {
   .complaints-center-toolbar {
     flex-direction: column;
@@ -3947,6 +4028,11 @@ body {
   }
   .toolbar-select {
     width: 100%;
+  }
+  .complaints-center-toolbar .toolbar-search {
+    width: 100%;
+    max-width: 100%;
+    min-width: 100%;
   }
   .toolbar-right-meta {
     justify-content: space-between;
@@ -4985,6 +5071,16 @@ select option {
   box-shadow: 0 0 6px #10b981;
 }
 
+.pro-status-badge.status-rejected {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+.pro-status-badge.status-rejected .status-dot {
+  background: #ef4444;
+  box-shadow: 0 0 6px #ef4444;
+}
+
 /* =========================================================
    REFINED COMPACT CARDS & METADATA CHIPS
    ========================================================= */
@@ -5119,7 +5215,7 @@ select option {
   background: rgba(0, 0, 0, 0.94);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  z-index: 99999999 !important;
+  z-index: 999999999 !important;
   display: flex;
   align-items: center;
   justify-content: center;

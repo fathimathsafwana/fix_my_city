@@ -37,7 +37,7 @@ const issueSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["Submitted", "Verified", "Assigned", "In Progress", "Resolved"],
+      enum: ["Submitted", "Verified", "Assigned", "In Progress", "Resolved", "Rejected"],
       default: "Submitted",
     },
     department: {

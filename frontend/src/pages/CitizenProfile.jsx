@@ -100,13 +100,6 @@ function CitizenProfile() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
-    showToast("Logged out successfully.", "info");
-    navigate("/login");
-  };
-
   const getRoleLabel = (role) => {
     if (role === "admin") return "🛡️ Master Administrator";
     if (role === "department") return "🏢 Department Officer";
@@ -233,14 +226,6 @@ function CitizenProfile() {
                     disabled={saving}
                   >
                     {saving ? "Saving Changes..." : "💾 Save Changes"}
-                  </button>
-
-                  <button
-                    type="button"
-                    className="profile-btn-logout"
-                    onClick={handleLogout}
-                  >
-                    🚪 Logout
                   </button>
                 </div>
               </form>

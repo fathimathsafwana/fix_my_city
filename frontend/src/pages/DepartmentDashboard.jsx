@@ -1,13 +1,12 @@
 import { useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate } from "react-router-dom";
+import Navbar from "../components/Navbar";
 import { useToast } from "../context/useToast";
 import Pagination from "../components/Pagination";
 import { API_BASE_URL } from "../config";
 
 function DepartmentDashboard() {
   const { showToast } = useToast();
-  const navigate = useNavigate();
 
   const [issues, setIssues] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -25,10 +24,6 @@ function DepartmentDashboard() {
 
   // Lightbox Modal for high-res photo inspection
   const [lightboxImage, setLightboxImage] = useState(null);
-
-  // Sidebar controls
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   // Completed work photo upload states
   const [uploadingPhotoId, setUploadingPhotoId] = useState(null);
@@ -53,12 +48,6 @@ function DepartmentDashboard() {
     } catch {}
     return "";
   }, [currentUser]);
-
-  const handleLogout = () => {
-    localStorage.removeItem("user");
-    showToast("Signed out successfully.", "info");
-    navigate("/login");
-  };
 
   const getAuthHeaders = () => {
     try {
@@ -346,21 +335,15 @@ function DepartmentDashboard() {
   };
 
   return (
-    <div className="dept-sidebar-layout">
-      {/* Mobile Drawer Backdrop */}
-      {isMobileOpen && (
-        <div
-          className="dept-sidebar-backdrop"
-          onClick={() => setIsMobileOpen(false)}
-        />
-      )}
+    <div className="department-page">
+      <Navbar />
 
       {/* Lightbox Photo Preview Modal (Portaled directly to document.body for topmost stacking order) */}
       {lightboxImage &&
         createPortal(
           <div
             className="image-lightbox-overlay"
-            style={{ zIndex: 99999999 }}
+            style={{ zIndex: 999999999 }}
             onClick={() => setLightboxImage(null)}
           >
             <div
@@ -382,136 +365,29 @@ function DepartmentDashboard() {
           document.body
         )}
 
-      {/* =========================================================
-          LEFT SIDEBAR NAVIGATION
-          ========================================================= */}
-      <aside
-        className={`dept-sidebar ${isCollapsed ? "collapsed" : ""} ${
-          isMobileOpen ? "mobile-open" : ""
-        }`}
-      >
-        {/* Brand Header */}
-        <div className="dept-sidebar-brand">
-          <Link to="/" className="sidebar-logo">
-            <span className="sidebar-logo-icon">🏛️</span>
-            {!isCollapsed && (
-              <div className="sidebar-logo-text-group">
-                <span className="sidebar-logo-text">FixMyCity</span>
-                <span className="sidebar-logo-sub">Operations</span>
-              </div>
-            )}
-          </Link>
-          <button
-            className="sidebar-collapse-toggle"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {isCollapsed ? "»" : "«"}
-          </button>
-        </div>
-
-        {/* Officer Profile Badge */}
-        <div className="dept-officer-profile">
-          <div className="officer-avatar" title={currentUser?.name || "Department Officer"}>
-            {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : "D"}
-            <span className="officer-online-dot" title="Active On Duty" />
-          </div>
-          {!isCollapsed && (
-            <div className="officer-info">
-              <span className="officer-name">
-                {currentUser?.name || "Department Officer"}
-              </span>
-              <span className="officer-role-tag">Department Portal</span>
-              <span className="officer-email">
-                {currentUser?.email || "department@gmail.com"}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Scrollable Navigation Sections */}
-        <div className="dept-sidebar-scroll">
-          <div className="dept-nav-group">
-            {!isCollapsed && (
-              <div className="dept-nav-group-title">DEPARTMENT MODULES</div>
-            )}
-
-            <button
-              className="dept-nav-item active"
-              onClick={() => {
-                setStatusFilter("All");
-                setSearchQuery("");
-                setIsMobileOpen(false);
-              }}
-              title="Complaints Center - View Assigned Complaints"
-            >
-              <span className="nav-item-icon">📋</span>
-              {!isCollapsed && (
-                <span className="nav-item-label">Complaints Center</span>
+      <div className="dashboard-container">
+        {/* Department Dashboard Header */}
+        <div className="dashboard-header">
+          <div className="dept-header-title-wrap">
+            <h1 className="dashboard-title">
+              {currentDept ? (
+                <>
+                  <span className="dept-head-icon">
+                    {getDeptIcon(currentDept.name)}
+                  </span>{" "}
+                  <span>{currentDept.name}</span>
+                </>
+              ) : (
+                <>
+                  <span className="accent-text">Department</span> Operations Center
+                </>
               )}
-              {!isCollapsed && (
-                <span className="nav-item-badge">{stats.total}</span>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Sidebar Footer */}
-        <div className="dept-sidebar-footer">
-          <Link
-            to="/"
-            className="sidebar-action-btn"
-            title="Return to Public Portal Home"
-          >
-            <span>🏠</span>
-            {!isCollapsed && <span>Public Portal</span>}
-          </Link>
-          <button
-            className="sidebar-action-btn logout"
-            onClick={handleLogout}
-            title="Sign out"
-          >
-            <span>🚪</span>
-            {!isCollapsed && <span>Logout</span>}
-          </button>
-        </div>
-      </aside>
-
-      {/* =========================================================
-          RIGHT MAIN CONTENT AREA
-          ========================================================= */}
-      <main className="dept-main-content">
-        {/* Sticky Top Bar */}
-        <header className="dept-topbar">
-          <div className="dept-topbar-left">
-            <button
-              className="mobile-hamburger-btn"
-              onClick={() => setIsMobileOpen(!isMobileOpen)}
-              title="Open Navigation"
-            >
-              ☰
-            </button>
-            <div className="dept-header-title-wrap">
-              <h1 className="dept-page-heading">
-                {currentDept ? (
-                  <>
-                    <span className="dept-head-icon">
-                      {getDeptIcon(currentDept.name)}
-                    </span>
-                    <span>{currentDept.name}</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="accent-text">Department</span> Operations Center
-                  </>
-                )}
-              </h1>
-              <p className="dept-page-subheading">
-                {currentDept
-                  ? `Viewing issues assigned to ${currentDept.name} • ${stats.total} complaints`
-                  : `All municipal departments overview • ${stats.total} total complaints`}
-              </p>
-            </div>
+            </h1>
+            <p className="dashboard-subtitle">
+              {currentDept
+                ? `Viewing issues assigned to ${currentDept.name} • ${stats.total} complaints`
+                : `All municipal departments overview • ${stats.total} total complaints`}
+            </p>
           </div>
 
           <div className="dept-topbar-right">
@@ -534,12 +410,17 @@ function DepartmentDashboard() {
                 </button>
               )}
             </div>
+            <button
+              className="btn-refresh"
+              onClick={fetchIssues}
+              title="Refresh complaints list"
+            >
+              🔄 Refresh
+            </button>
           </div>
-        </header>
+        </div>
 
-        {/* Content Body */}
-        <div className="dept-content-body">
-          {/* Interactive Metric Cards Strip */}
+        {/* Interactive Metric Cards Strip */}
           <div className="stats-grid">
             <div
               className={`stat-card ${statusFilter === "All" ? "stat-active" : ""}`}
@@ -720,9 +601,9 @@ function DepartmentDashboard() {
                       <th className="col-info">Category & Title</th>
                       <th className="col-loc">Location</th>
                       <th className="col-date">Reported Date</th>
-                      <th className="col-photo">Photos & Proof</th>
+                      <th className="col-photo">Photos</th>
                       <th className="col-status">Current Status</th>
-                      <th className="col-action">Action / Resolution</th>
+                      <th className="col-action">Action</th>
                     </tr>
                   </thead>
                   <tbody>

@@ -685,11 +685,11 @@ function AdminDashboard() {
     return {
       total: relevant.length,
       submitted: relevant.filter((i) => i.status === "Submitted").length,
+      assigned: relevant.filter((i) => i.status === "Assigned").length,
       verified: relevant.filter((i) => i.status === "Verified").length,
-      inProgress: relevant.filter(
-        (i) => i.status === "In Progress" || i.status === "Assigned"
-      ).length,
+      inProgress: relevant.filter((i) => i.status === "In Progress").length,
       resolved: relevant.filter((i) => i.status === "Resolved").length,
+      rejected: relevant.filter((i) => i.status === "Rejected").length,
     };
   }, [issues, departmentFilter]);
 
@@ -755,6 +755,10 @@ function AdminDashboard() {
   useEffect(() => {
     setDepartmentsPage(1);
   }, [deptSearchQuery]);
+
+  useEffect(() => {
+    setFeedbackPage(1);
+  }, [feedbackSearchQuery, feedbackRatingFilter]);
 
   const totalDepartmentsPages =
     Math.ceil(filteredDepartments.length / departmentsPageSize) || 1;
@@ -893,7 +897,7 @@ function AdminDashboard() {
         createPortal(
           <div
             className="image-lightbox-overlay"
-            style={{ zIndex: 99999999 }}
+            style={{ zIndex: 999999999 }}
             onClick={() => setLightboxImage(null)}
           >
             <div
@@ -1605,23 +1609,6 @@ function AdminDashboard() {
                 />
               </div>
 
-              <div className="modal-form-group">
-                <label>Category</label>
-                <select
-                  value={editFormData.category}
-                  onChange={(e) =>
-                    setEditFormData({ ...editFormData, category: e.target.value })
-                  }
-                >
-                  <option value="Roads & Footpaths">🚧 Roads & Footpaths</option>
-                  <option value="Street Lighting">💡 Street Lighting</option>
-                  <option value="Garbage & Sanitation">🗑️ Garbage & Sanitation</option>
-                  <option value="Water Supply">🚰 Water Supply</option>
-                  <option value="Drainage & Sewage">🌊 Drainage & Sewage</option>
-                  <option value="Public Safety">🚨 Public Safety</option>
-                  <option value="General">📍 General</option>
-                </select>
-              </div>
 
               <div className="modal-form-group">
                 <label>Current Status</label>
@@ -1632,10 +1619,7 @@ function AdminDashboard() {
                   }
                 >
                   <option value="Submitted">📥 Submitted</option>
-                  <option value="Verified">🔍 Verified</option>
                   <option value="Assigned">🏢 Assigned</option>
-                  <option value="In Progress">⚙️ In Progress</option>
-                  <option value="Resolved">✅ Resolved</option>
                   <option value="Rejected">❌ Rejected</option>
                 </select>
               </div>
@@ -1731,35 +1715,6 @@ function AdminDashboard() {
           </button>
         </div>
 
-        {/* Administrator Profile Badge */}
-        <div className="dept-officer-profile">
-          <div
-            className="officer-avatar"
-            style={{
-              background: "linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(56, 189, 248, 0.05))",
-              borderColor: "rgba(56, 189, 248, 0.4)",
-              color: "#38bdf8",
-            }}
-            title={currentUser?.name || "City Administrator"}
-          >
-            {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : "A"}
-            <span className="officer-online-dot" title="Active On Duty" />
-          </div>
-          {!isCollapsed && (
-            <div className="officer-info">
-              <span className="officer-name">
-                {currentUser?.name || "City Administrator"}
-              </span>
-              <span className="officer-role-tag" style={{ color: "#38bdf8" }}>
-                🛡️ Master Admin
-              </span>
-              <span className="officer-email">
-                {currentUser?.email || "admin@gmail.com"}
-              </span>
-            </div>
-          )}
-        </div>
-
         {/* Scrollable Navigation Sections */}
         <div className="dept-sidebar-scroll">
           {/* SECTION 1: ADMIN OPERATIONS SWITCHER */}
@@ -1837,14 +1792,35 @@ function AdminDashboard() {
 
         {/* Sidebar Footer */}
         <div className="dept-sidebar-footer">
-          <Link
-            to="/"
-            className="sidebar-action-btn"
-            title="Return to Public Portal Home"
+          {/* Simplified Admin Badge */}
+          <div
+            className="sidebar-action-btn admin-footer-badge"
+            style={{ cursor: "default" }}
+            title={currentUser?.email || "admin@gmail.com"}
           >
-            <span>🏠</span>
-            {!isCollapsed && <span>Public Portal</span>}
-          </Link>
+            <div
+              className="officer-avatar"
+              style={{
+                width: "28px",
+                height: "28px",
+                fontSize: "13px",
+                fontWeight: "800",
+                borderRadius: "7px",
+                background: "linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(56, 189, 248, 0.05))",
+                borderColor: "rgba(56, 189, 248, 0.4)",
+                color: "#38bdf8",
+                flexShrink: 0,
+              }}
+            >
+              A
+            </div>
+            {!isCollapsed && (
+              <span className="admin-footer-name">
+                Admin
+              </span>
+            )}
+          </div>
+
           <button
             className="sidebar-action-btn logout"
             onClick={handleLogout}
@@ -1915,60 +1891,6 @@ function AdminDashboard() {
                   ? `Municipal department directory`
                   : `Citizen satisfaction reviews, service ratings & portal feedback`}
               </p>
-            </div>
-          </div>
-
-          <div className="dept-topbar-right">
-            {/* Search Input */}
-            <div className="dept-topbar-search">
-              <span className="topbar-search-icon">🔍</span>
-              <input
-                type="text"
-                placeholder={
-                  activeTab === "complaints"
-                    ? "Search complaints, ID, category..."
-                    : activeTab === "users"
-                    ? "Search users by name, email, role..."
-                    : activeTab === "departments"
-                    ? "Search departments by name or scope..."
-                    : "Search feedbacks by citizen, comment, topic..."
-                }
-                value={
-                  activeTab === "complaints"
-                    ? searchQuery
-                    : activeTab === "users"
-                    ? userSearchQuery
-                    : activeTab === "departments"
-                    ? deptSearchQuery
-                    : feedbackSearchQuery
-                }
-                onChange={(e) => {
-                  if (activeTab === "complaints") setSearchQuery(e.target.value);
-                  else if (activeTab === "users") setUserSearchQuery(e.target.value);
-                  else if (activeTab === "departments") setDeptSearchQuery(e.target.value);
-                  else setFeedbackSearchQuery(e.target.value);
-                }}
-              />
-              {(activeTab === "complaints"
-                ? searchQuery
-                : activeTab === "users"
-                ? userSearchQuery
-                : activeTab === "departments"
-                ? deptSearchQuery
-                : feedbackSearchQuery) && (
-                <button
-                  className="clear-search-btn"
-                  onClick={() => {
-                    if (activeTab === "complaints") setSearchQuery("");
-                    else if (activeTab === "users") setUserSearchQuery("");
-                    else if (activeTab === "departments") setDeptSearchQuery("");
-                    else setFeedbackSearchQuery("");
-                  }}
-                  title="Clear search"
-                >
-                  ✕
-                </button>
-              )}
             </div>
           </div>
         </header>
@@ -2069,6 +1991,26 @@ function AdminDashboard() {
               {/* Complaints Center Filter & Controls Toolbar */}
               <div className="complaints-center-toolbar">
                 <div className="toolbar-left-controls">
+                  {/* Search Complaints */}
+                  <div className="toolbar-search">
+                    <span className="search-icon">🔍</span>
+                    <input
+                      type="text"
+                      placeholder="Search complaints, ID, category..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    {searchQuery && (
+                      <button
+                        className="clear-search-btn"
+                        onClick={() => setSearchQuery("")}
+                        title="Clear search"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
                   <div className="toolbar-control-group">
                     <label className="toolbar-control-label" htmlFor="dept-select-filter">
                       <span className="toolbar-icon">🏢</span> Department:
@@ -2099,6 +2041,7 @@ function AdminDashboard() {
 
                   <div className="toolbar-control-group">
                     <label className="toolbar-control-label" htmlFor="status-select-filter">
+                      <span className="toolbar-icon">⚡</span> Status:
                     </label>
                     <select
                       id="status-select-filter"
@@ -2109,6 +2052,7 @@ function AdminDashboard() {
                     >
                       <option value="All">📊 All Statuses ({issues.length})</option>
                       <option value="Submitted">📥 Submitted ({complaintStats.submitted})</option>
+                      <option value="Assigned">🏢 Assigned ({complaintStats.assigned})</option>
                       <option value="Verified">🔍 Verified ({complaintStats.verified})</option>
                       <option value="In Progress">⚙️ In Progress ({complaintStats.inProgress})</option>
                       <option value="Resolved">✅ Resolved ({complaintStats.resolved})</option>
@@ -2514,6 +2458,27 @@ function AdminDashboard() {
 
               {/* Users Toolbar - Top of Table */}
               <div className="complaints-center-toolbar" style={{ marginTop: "10px" }}>
+                <div className="toolbar-left-controls">
+                  {/* Search Users */}
+                  <div className="toolbar-search">
+                    <span className="search-icon">🔍</span>
+                    <input
+                      type="text"
+                      placeholder="Search users by name, email, role..."
+                      value={userSearchQuery}
+                      onChange={(e) => setUserSearchQuery(e.target.value)}
+                    />
+                    {userSearchQuery && (
+                      <button
+                        className="clear-search-btn"
+                        onClick={() => setUserSearchQuery("")}
+                        title="Clear search"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
 
                 <div className="toolbar-right-meta">
                   <div className="view-mode-toggle">
@@ -2841,6 +2806,28 @@ function AdminDashboard() {
 
               {/* Departments Toolbar - Top of Table */}
               <div className="complaints-center-toolbar" style={{ marginTop: "10px" }}>
+                <div className="toolbar-left-controls">
+                  {/* Search Departments */}
+                  <div className="toolbar-search">
+                    <span className="search-icon">🔍</span>
+                    <input
+                      type="text"
+                      placeholder="Search departments by name or scope..."
+                      value={deptSearchQuery}
+                      onChange={(e) => setDeptSearchQuery(e.target.value)}
+                    />
+                    {deptSearchQuery && (
+                      <button
+                        className="clear-search-btn"
+                        onClick={() => setDeptSearchQuery("")}
+                        title="Clear search"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 <div className="toolbar-right-meta">
                   <div className="view-mode-toggle">
                     <button
@@ -3158,6 +3145,26 @@ function AdminDashboard() {
               {/* Feedbacks Toolbar */}
               <div className="complaints-center-toolbar" style={{ marginTop: "10px" }}>
                 <div className="toolbar-left-controls">
+                  {/* Search Feedbacks */}
+                  <div className="toolbar-search">
+                    <span className="search-icon">🔍</span>
+                    <input
+                      type="text"
+                      placeholder="Search feedbacks by citizen, comment, topic..."
+                      value={feedbackSearchQuery}
+                      onChange={(e) => setFeedbackSearchQuery(e.target.value)}
+                    />
+                    {feedbackSearchQuery && (
+                      <button
+                        className="clear-search-btn"
+                        onClick={() => setFeedbackSearchQuery("")}
+                        title="Clear search"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
                   <div className="toolbar-control-group">
                     <label className="toolbar-control-label" htmlFor="rating-select-filter">
                       <span className="toolbar-icon">⭐</span> Rating:
