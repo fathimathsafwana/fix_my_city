@@ -1759,9 +1759,6 @@ function AdminDashboard() {
               {!isCollapsed && (
                 <span className="nav-item-label">Complaints</span>
               )}
-              {!isCollapsed && (
-                <span className="nav-item-badge">{issues.length}</span>
-              )}
             </button>
 
             <button
@@ -1776,18 +1773,6 @@ function AdminDashboard() {
               <span className="nav-item-icon">👥</span>
               {!isCollapsed && (
                 <span className="nav-item-label">Users</span>
-              )}
-              {!isCollapsed && (
-                <span
-                  className="nav-item-badge"
-                  style={{
-                    background: "rgba(56, 189, 248, 0.15)",
-                    color: "#38bdf8",
-                    border: "1px solid rgba(56, 189, 248, 0.3)",
-                  }}
-                >
-                  {userStats.total}
-                </span>
               )}
             </button>
 
@@ -1805,18 +1790,6 @@ function AdminDashboard() {
               {!isCollapsed && (
                 <span className="nav-item-label">Departments</span>
               )}
-              {!isCollapsed && (
-                <span
-                  className="nav-item-badge"
-                  style={{
-                    background: "rgba(168, 85, 247, 0.15)",
-                    color: "#c084fc",
-                    border: "1px solid rgba(168, 85, 247, 0.3)",
-                  }}
-                >
-                  {departments.length}
-                </span>
-              )}
             </button>
 
             <button
@@ -1833,18 +1806,6 @@ function AdminDashboard() {
               <span className="nav-item-icon">⭐</span>
               {!isCollapsed && (
                 <span className="nav-item-label">Reviews</span>
-              )}
-              {!isCollapsed && (
-                <span
-                  className="nav-item-badge"
-                  style={{
-                    background: "rgba(250, 204, 21, 0.15)",
-                    color: "#facc15",
-                    border: "1px solid rgba(250, 204, 21, 0.3)",
-                  }}
-                >
-                  {feedbacks.length}
-                </span>
               )}
             </button>
           </div>
