@@ -1909,11 +1909,11 @@ function AdminDashboard() {
                   )
                 ) : activeTab === "users" ? (
                   <>
-                    <span className="accent-text">👥 Manage</span> Users & Roles
+                    <span className="accent-text">Users</span> & Roles
                   </>
                 ) : activeTab === "departments" ? (
                   <>
-                    <span className="accent-text">🏢 Manage</span> Municipal Departments
+                    <span className="accent-text">Municipal</span> Departments
                   </>
                 ) : (
                   <>
@@ -1929,9 +1929,9 @@ function AdminDashboard() {
                     ? `Managing complaints assigned to ${currentDept.name} • ${complaintStats.total} complaints`
                     : `Central civic grievance repository • Showing all ${complaintStats.total} complaints across the city`
                   : activeTab === "users"
-                  ? `Platform user directory • ${userStats.total} registered accounts`
+                  ? `Platform user directory `
                   : activeTab === "departments"
-                  ? `Municipal department directory • ${departments.length} registered departments`
+                  ? `Municipal department directory`
                   : `Citizen satisfaction reviews, service ratings & portal feedback • Showing all ${feedbackStats.total} reviews`}
               </p>
             </div>
