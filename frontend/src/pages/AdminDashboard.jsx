@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "../context/useToast";
 import Pagination from "../components/Pagination";
@@ -887,29 +888,32 @@ function AdminDashboard() {
         />
       )}
 
-      {/* Lightbox Photo Preview Modal */}
-      {lightboxImage && (
-        <div
-          className="image-lightbox-overlay"
-          onClick={() => setLightboxImage(null)}
-        >
+      {/* Lightbox Photo Preview Modal (Rendered via Portal to document.body to ensure top-level stacking above all modals) */}
+      {lightboxImage &&
+        createPortal(
           <div
-            className="image-lightbox-content"
-            onClick={(e) => e.stopPropagation()}
+            className="image-lightbox-overlay"
+            style={{ zIndex: 99999999 }}
+            onClick={() => setLightboxImage(null)}
           >
-            <button
-              className="image-lightbox-close-btn"
-              onClick={() => setLightboxImage(null)}
+            <div
+              className="image-lightbox-content"
+              onClick={(e) => e.stopPropagation()}
             >
-              ✕
-            </button>
-            <img src={lightboxImage.url} alt={lightboxImage.title || "Proof"} />
-            <div className="image-lightbox-caption">
-              {lightboxImage.title} • {lightboxImage.type}
+              <button
+                className="image-lightbox-close-btn"
+                onClick={() => setLightboxImage(null)}
+              >
+                ✕
+              </button>
+              <img src={lightboxImage.url} alt={lightboxImage.title || "Proof"} />
+              <div className="image-lightbox-caption">
+                {lightboxImage.title} • {lightboxImage.type}
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
 
       {/* View User / Citizen Modal */}
       {viewingUser && (
@@ -1475,7 +1479,7 @@ function AdminDashboard() {
                   <div style={{ display: "flex", gap: "14px", flexWrap: "wrap" }}>
                     {viewingIssue.photo && (
                       <div
-                        style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", overflow: "hidden", width: "160px" }}
+                        style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.18)", borderRadius: "8px", overflow: "hidden", width: "160px", background: "rgba(15,23,42,0.9)", transition: "transform 0.2s ease, border-color 0.2s ease" }}
                         onClick={() =>
                           setLightboxImage({
                             url: getPhotoUrl(viewingIssue.photo),
@@ -1483,20 +1487,21 @@ function AdminDashboard() {
                             type: "Citizen Photo Proof",
                           })
                         }
+                        title="Click to expand full photo"
                       >
                         <img
                           src={getPhotoUrl(viewingIssue.photo)}
                           alt="Citizen Proof"
-                          style={{ width: "100%", height: "110px", objectFit: "cover" }}
+                          style={{ width: "100%", height: "110px", objectFit: "cover", display: "block" }}
                         />
-                        <div style={{ padding: "4px 8px", fontSize: "11px", color: "#38bdf8", textAlign: "center", background: "rgba(15,23,42,0.9)" }}>
+                        <div style={{ padding: "6px 8px", fontSize: "11px", color: "#38bdf8", textAlign: "center", background: "rgba(15,23,42,0.95)", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}>
                           📷 Citizen Proof (Zoom)
                         </div>
                       </div>
                     )}
                     {viewingIssue.resolvedPhoto && (
                       <div
-                        style={{ cursor: "pointer", border: "1px solid #10b981", borderRadius: "8px", overflow: "hidden", width: "160px" }}
+                        style={{ cursor: "pointer", border: "2px solid #10b981", borderRadius: "8px", overflow: "hidden", width: "160px", background: "rgba(15,23,42,0.9)", transition: "transform 0.2s ease" }}
                         onClick={() =>
                           setLightboxImage({
                             url: getPhotoUrl(viewingIssue.resolvedPhoto),
@@ -1504,13 +1509,14 @@ function AdminDashboard() {
                             type: "Completed Work Proof",
                           })
                         }
+                        title="Click to expand resolved proof"
                       >
                         <img
                           src={getPhotoUrl(viewingIssue.resolvedPhoto)}
                           alt="Resolved Proof"
-                          style={{ width: "100%", height: "110px", objectFit: "cover" }}
+                          style={{ width: "100%", height: "110px", objectFit: "cover", display: "block" }}
                         />
-                        <div style={{ padding: "4px 8px", fontSize: "11px", color: "#10b981", textAlign: "center", background: "rgba(15,23,42,0.9)" }}>
+                        <div style={{ padding: "6px 8px", fontSize: "11px", color: "#10b981", textAlign: "center", background: "rgba(15,23,42,0.95)", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}>
                           ✅ Resolved Proof (Zoom)
                         </div>
                       </div>
@@ -2093,7 +2099,6 @@ function AdminDashboard() {
 
                   <div className="toolbar-control-group">
                     <label className="toolbar-control-label" htmlFor="status-select-filter">
-                      <span className="toolbar-icon">⚡</span> Status:
                     </label>
                     <select
                       id="status-select-filter"
@@ -2509,11 +2514,6 @@ function AdminDashboard() {
 
               {/* Users Toolbar - Top of Table */}
               <div className="complaints-center-toolbar" style={{ marginTop: "10px" }}>
-                <div className="toolbar-left-controls">
-                  <span style={{ fontSize: "13px", color: "var(--text-secondary)", fontWeight: 500 }}>
-                    Displaying <strong>{filteredUsers.length}</strong> platform citizens
-                  </span>
-                </div>
 
                 <div className="toolbar-right-meta">
                   <div className="view-mode-toggle">
@@ -2841,12 +2841,6 @@ function AdminDashboard() {
 
               {/* Departments Toolbar - Top of Table */}
               <div className="complaints-center-toolbar" style={{ marginTop: "10px" }}>
-                <div className="toolbar-left-controls">
-                  <span style={{ fontSize: "13px", color: "var(--text-muted)", fontWeight: 600 }}>
-                    🏛️ Showing {filteredDepartments.length} of {departments.length} Municipal Departments
-                  </span>
-                </div>
-
                 <div className="toolbar-right-meta">
                   <div className="view-mode-toggle">
                     <button
@@ -3186,17 +3180,6 @@ function AdminDashboard() {
                       <option value="1">⭐ 1 Star ({feedbackStats.count1})</option>
                     </select>
                   </div>
-
-                  <span
-                    style={{
-                      fontSize: "13px",
-                      color: "var(--text-muted)",
-                      fontWeight: 600,
-                      marginLeft: "8px",
-                    }}
-                  >
-                    Showing {filteredFeedbacks.length} of {feedbacks.length} Reviews
-                  </span>
                 </div>
 
                 <div className="toolbar-right-meta">

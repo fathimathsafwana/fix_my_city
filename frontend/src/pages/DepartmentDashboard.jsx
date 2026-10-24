@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "../context/useToast";
 import Pagination from "../components/Pagination";
@@ -354,29 +355,32 @@ function DepartmentDashboard() {
         />
       )}
 
-      {/* Lightbox Photo Preview Modal */}
-      {lightboxImage && (
-        <div
-          className="image-lightbox-overlay"
-          onClick={() => setLightboxImage(null)}
-        >
+      {/* Lightbox Photo Preview Modal (Portaled directly to document.body for topmost stacking order) */}
+      {lightboxImage &&
+        createPortal(
           <div
-            className="image-lightbox-content"
-            onClick={(e) => e.stopPropagation()}
+            className="image-lightbox-overlay"
+            style={{ zIndex: 99999999 }}
+            onClick={() => setLightboxImage(null)}
           >
-            <button
-              className="image-lightbox-close-btn"
-              onClick={() => setLightboxImage(null)}
+            <div
+              className="image-lightbox-content"
+              onClick={(e) => e.stopPropagation()}
             >
-              ✕
-            </button>
-            <img src={lightboxImage.url} alt={lightboxImage.title || "Proof"} />
-            <div className="image-lightbox-caption">
-              {lightboxImage.title} • {lightboxImage.type}
+              <button
+                className="image-lightbox-close-btn"
+                onClick={() => setLightboxImage(null)}
+              >
+                ✕
+              </button>
+              <img src={lightboxImage.url} alt={lightboxImage.title || "Proof"} />
+              <div className="image-lightbox-caption">
+                {lightboxImage.title} • {lightboxImage.type}
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
 
       {/* =========================================================
           LEFT SIDEBAR NAVIGATION
@@ -624,17 +628,6 @@ function DepartmentDashboard() {
                   <option value="Resolved">✨ Resolved ({stats.resolved})</option>
                 </select>
               </div>
-
-              <span
-                style={{
-                  fontSize: "13px",
-                  color: "var(--text-muted)",
-                  fontWeight: 600,
-                  marginLeft: "8px",
-                }}
-              >
-                Showing {filteredIssues.length} of {stats.total} Complaints
-              </span>
             </div>
 
             <div className="toolbar-right-meta">
