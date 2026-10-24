@@ -2951,6 +2951,7 @@ function AdminDashboard() {
                       <thead>
                         <tr>
                           <th>Department Name</th>
+                          <th>Email</th>
                           <th style={{ width: "160px" }}>Created Date</th>
                           <th style={{ width: "120px", textAlign: "center" }}>Actions</th>
                         </tr>
@@ -2977,11 +2978,6 @@ function AdminDashboard() {
                                       <span className="dept-code-pill">
                                         ID: {dept._id?.slice(-6)}
                                       </span>
-                                      {dept.email && (
-                                        <span className="dept-email-pill">
-                                          ✉️ {dept.email}
-                                        </span>
-                                      )}
                                       {deptOfficer?.password && (
                                         <span className="dept-email-pill" style={{ color: "#a3e635", borderColor: "rgba(163, 230, 53, 0.3)" }}>
                                           🔑 {deptOfficer.password}
@@ -2990,6 +2986,12 @@ function AdminDashboard() {
                                     </div>
                                   </div>
                                 </div>
+                              </td>
+
+                              <td>
+                                <span style={{ color: "#38bdf8", fontSize: "13.5px", fontWeight: 500 }}>
+                                  {dept.email || "—"}
+                                </span>
                               </td>
 
                               <td>
