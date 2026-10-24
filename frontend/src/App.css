@@ -4154,6 +4154,13 @@ body {
   color: #c084fc;
 }
 
+.user-avatar-circle.role-blocked {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #f87171;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
+}
+
 .user-info-text {
   display: flex;
   flex-direction: column;

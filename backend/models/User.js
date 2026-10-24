@@ -28,6 +28,10 @@ const userSchema = new mongoose.Schema(
       ref: "Department",
       default: null,
     },
+    isBlocked: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

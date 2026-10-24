@@ -170,6 +170,12 @@ app.post("/api/login", async (req, res) => {
       });
     }
 
+    if (user.isBlocked) {
+      return res.status(403).json({
+        message: "Your account has been blocked by the administrator. Please contact municipal support.",
+      });
+    }
+
     // Populate department object if department user
     let departmentData = user.department;
     if (user.role === "department" && user.department) {
@@ -191,6 +197,7 @@ app.post("/api/login", async (req, res) => {
         email: user.email,
         role: user.role,
         department: departmentData,
+        isBlocked: user.isBlocked || false,
       },
     });
   } catch (error) {
@@ -885,6 +892,10 @@ app.put("/api/users/:id", async (req, res) => {
       updateData.department = department || null;
     }
 
+    if (req.body.isBlocked !== undefined) {
+      updateData.isBlocked = Boolean(req.body.isBlocked);
+    }
+
     const updated = await User.findByIdAndUpdate(
       req.params.id,
       updateData,
@@ -907,6 +918,43 @@ app.put("/api/users/:id", async (req, res) => {
     console.error("Error updating user:", error);
     res.status(500).json({
       message: "Failed to update user.",
+      error: error.message,
+    });
+  }
+});
+
+// 3b. Toggle Block / Unblock User
+app.put("/api/users/:id/block", async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+    if (user.role === "admin") {
+      return res.status(400).json({ message: "Administrators cannot be blocked." });
+    }
+
+    user.isBlocked = !user.isBlocked;
+    const updated = await user.save();
+    console.log(`User ${user.email} block status toggled to: ${user.isBlocked}`);
+
+    res.status(200).json({
+      message: `User "${user.name}" has been ${user.isBlocked ? "blocked" : "unblocked"} successfully.`,
+      user: {
+        _id: updated._id,
+        name: updated.name,
+        email: updated.email,
+        role: updated.role,
+        department: updated.department,
+        isBlocked: updated.isBlocked,
+        createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt,
+      },
+    });
+  } catch (error) {
+    console.error("Error toggling user block status:", error);
+    res.status(500).json({
+      message: "Failed to update user block status.",
       error: error.message,
     });
   }

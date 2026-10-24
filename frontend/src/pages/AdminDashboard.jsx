@@ -538,6 +538,37 @@ function AdminDashboard() {
     }
   };
 
+  const handleToggleBlockUser = async (user) => {
+    const actionWord = user.isBlocked ? "unblock" : "block";
+    if (
+      !window.confirm(
+        `Are you sure you want to ${actionWord} citizen "${user.name}"?`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/${user._id}/block`, {
+        method: "PUT",
+        headers: getAuthHeaders(),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || `Failed to ${actionWord} user.`);
+
+      setUsers((prev) =>
+        prev.map((u) => (u._id === user._id ? { ...u, isBlocked: !u.isBlocked } : u))
+      );
+      if (viewingUser && viewingUser._id === user._id) {
+        setViewingUser((prev) => ({ ...prev, isBlocked: !prev.isBlocked }));
+      }
+      showToast(data.message || `User ${actionWord}ed successfully!`, "success");
+    } catch (err) {
+      showToast(err.message || `Failed to ${actionWord} user.`, "error");
+    }
+  };
+
   const handleDeleteUser = async (userId, userName) => {
     if (!window.confirm(`Are you sure you want to delete user "${userName}"? This cannot be undone.`)) {
       return;
@@ -665,6 +696,8 @@ function AdminDashboard() {
     const manageableUsers = users.filter((u) => u.role !== "department" && u.role !== "admin");
     return {
       total: manageableUsers.length,
+      active: manageableUsers.filter((u) => !u.isBlocked).length,
+      blocked: manageableUsers.filter((u) => u.isBlocked).length,
       citizens: manageableUsers.filter((u) => u.role === "user").length,
     };
   }, [users]);
@@ -923,15 +956,24 @@ function AdminDashboard() {
 
                 <div>
                   <label style={{ fontSize: "11px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>
-                    Account Role
+                    Account Status
                   </label>
                   <div>
-                    <span className={`user-role-badge role-${viewingUser.role}`}>
-                      {viewingUser.role === "admin"
-                        ? "🛡️ City Administrator"
-                        : viewingUser.role === "department"
-                        ? "🏢 Department Officer"
-                        : "👤 Platform Citizen"}
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "5px",
+                        padding: "3px 10px",
+                        borderRadius: "999px",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        background: viewingUser.isBlocked ? "rgba(239, 68, 68, 0.15)" : "rgba(34, 197, 94, 0.15)",
+                        color: viewingUser.isBlocked ? "#f87171" : "#4ade80",
+                        border: `1px solid ${viewingUser.isBlocked ? "rgba(239, 68, 68, 0.3)" : "rgba(34, 197, 94, 0.3)"}`,
+                      }}
+                    >
+                      {viewingUser.isBlocked ? "🔴 Blocked" : "🟢 Active"}
                     </span>
                   </div>
                 </div>
@@ -1027,6 +1069,17 @@ function AdminDashboard() {
                   Registered: {viewingUser.createdAt ? new Date(viewingUser.createdAt).toLocaleDateString() : "Active"}
                 </span>
                 <div style={{ display: "flex", gap: "10px" }}>
+                  <button
+                    type="button"
+                    className="btn-modal-cancel"
+                    onClick={() => handleToggleBlockUser(viewingUser)}
+                    style={{
+                      color: viewingUser.isBlocked ? "#4ade80" : "#f87171",
+                      borderColor: viewingUser.isBlocked ? "rgba(34, 197, 94, 0.4)" : "rgba(239, 68, 68, 0.4)",
+                    }}
+                  >
+                    {viewingUser.isBlocked ? "🔓 Unblock Citizen" : "🚫 Block Citizen"}
+                  </button>
                   <button
                     type="button"
                     className="btn-modal-submit"
@@ -2579,12 +2632,25 @@ function AdminDashboard() {
 
                 <div
                   className="stat-card"
-                  title="Active registered citizens"
+                  title="Active platform citizens"
                 >
                   <div className="stat-icon">👤</div>
                   <div className="stat-info">
-                    <span className="stat-value">{userStats.citizens}</span>
+                    <span className="stat-value" style={{ color: "#4ade80" }}>{userStats.active}</span>
                     <span className="stat-label">Active Citizens</span>
+                  </div>
+                </div>
+
+                <div
+                  className="stat-card"
+                  title="Blocked citizens"
+                >
+                  <div className="stat-icon">🚫</div>
+                  <div className="stat-info">
+                    <span className="stat-value" style={{ color: userStats.blocked > 0 ? "#f87171" : "inherit" }}>
+                      {userStats.blocked}
+                    </span>
+                    <span className="stat-label">Blocked Citizens</span>
                   </div>
                 </div>
               </div>
@@ -2661,29 +2727,35 @@ function AdminDashboard() {
                     <table className="pro-table">
                       <thead>
                         <tr>
-                          <th className="col-u-user">User</th>
-                          <th className="col-u-date">Joined On</th>
-                          <th style={{ width: "110px", textAlign: "center" }}>Actions</th>
+                          <th>Name</th>
+                          <th>Email</th>
+                          <th>Created At</th>
+                          <th style={{ textAlign: "center" }}>Block Status</th>
+                          <th style={{ width: "130px", textAlign: "center" }}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {paginatedUsers.map((u) => {
                           return (
                             <tr key={u._id}>
-                              {/* Avatar & Info */}
+                              {/* Name */}
                               <td>
                                 <div className="user-cell-wrap">
-                                  <div className={`user-avatar-circle role-${u.role}`}>
+                                  <div className={`user-avatar-circle ${u.isBlocked ? "role-blocked" : "role-user"}`}>
                                     {u.name ? u.name.charAt(0).toUpperCase() : "U"}
                                   </div>
-                                  <div className="user-info-text">
-                                    <span className="user-fullname">{u.name || "Unnamed"}</span>
-                                    <span className="user-email-text">{u.email}</span>
-                                  </div>
+                                  <span className="user-fullname">{u.name || "Unnamed"}</span>
                                 </div>
                               </td>
 
-                              {/* Joined Date */}
+                              {/* Email */}
+                              <td>
+                                <span className="user-email-text" style={{ color: "#38bdf8", fontSize: "13.5px" }}>
+                                  {u.email}
+                                </span>
+                              </td>
+
+                              {/* Created At */}
                               <td>
                                 <span className="td-meta-date">
                                   {u.createdAt
@@ -2696,15 +2768,49 @@ function AdminDashboard() {
                                 </span>
                               </td>
 
-                              {/* Actions (View, Delete) */}
+                              {/* Block Status */}
                               <td style={{ textAlign: "center" }}>
-                                <div className="table-action-icons" style={{ justifyContent: "center" }}>
+                                <span
+                                  className={`status-pill ${u.isBlocked ? "status-blocked" : "status-active"}`}
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "4px",
+                                    padding: "3px 10px",
+                                    borderRadius: "999px",
+                                    fontSize: "11.5px",
+                                    fontWeight: 700,
+                                    background: u.isBlocked ? "rgba(239, 68, 68, 0.15)" : "rgba(34, 197, 94, 0.15)",
+                                    color: u.isBlocked ? "#f87171" : "#4ade80",
+                                    border: `1px solid ${u.isBlocked ? "rgba(239, 68, 68, 0.3)" : "rgba(34, 197, 94, 0.3)"}`,
+                                  }}
+                                >
+                                  {u.isBlocked ? "🔴 Blocked" : "🟢 Active"}
+                                </span>
+                              </td>
+
+                              {/* Actions (View, Block/Unblock, Delete) */}
+                              <td style={{ textAlign: "center" }}>
+                                <div className="table-action-icons" style={{ justifyContent: "center", gap: "6px" }}>
                                   <button
                                     className="action-icon-btn view"
                                     onClick={() => setViewingUser(u)}
                                     title="View User Details"
                                   >
                                     👁️
+                                  </button>
+                                  <button
+                                    className="action-icon-btn"
+                                    onClick={() => handleToggleBlockUser(u)}
+                                    title={u.isBlocked ? "Unblock Citizen" : "Block Citizen"}
+                                    style={{
+                                      background: u.isBlocked ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.15)",
+                                      color: u.isBlocked ? "#4ade80" : "#f87171",
+                                      borderColor: u.isBlocked ? "rgba(34, 197, 94, 0.35)" : "rgba(239, 68, 68, 0.35)",
+                                      fontSize: "12px",
+                                    }}
+                                  >
+                                    {u.isBlocked ? "🔓" : "🚫"}
                                   </button>
                                   <button
                                     className="action-icon-btn delete"
@@ -2734,25 +2840,62 @@ function AdminDashboard() {
                       <div className="user-card-pro" key={u._id}>
                         <div className="user-card-header">
                           <div className="user-cell-wrap">
-                            <div className={`user-avatar-circle role-${u.role}`}>
+                            <div className={`user-avatar-circle ${u.isBlocked ? "role-blocked" : "role-user"}`}>
                               {u.name ? u.name.charAt(0).toUpperCase() : "U"}
                             </div>
                             <div className="user-info-text">
                               <span className="user-fullname">{u.name || "Unnamed"}</span>
-                              <span className="user-email-text">{u.email}</span>
+                              <span className="user-email-text" style={{ color: "#38bdf8" }}>{u.email}</span>
                             </div>
                           </div>
+
+                          <span
+                            className={`status-pill ${u.isBlocked ? "status-blocked" : "status-active"}`}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              padding: "3px 8px",
+                              borderRadius: "999px",
+                              fontSize: "11px",
+                              fontWeight: 700,
+                              background: u.isBlocked ? "rgba(239, 68, 68, 0.15)" : "rgba(34, 197, 94, 0.15)",
+                              color: u.isBlocked ? "#f87171" : "#4ade80",
+                              border: `1px solid ${u.isBlocked ? "rgba(239, 68, 68, 0.3)" : "rgba(34, 197, 94, 0.3)"}`,
+                            }}
+                          >
+                            {u.isBlocked ? "🔴 Blocked" : "🟢 Active"}
+                          </span>
+                        </div>
+
+                        <div className="card-content-area" style={{ margin: "10px 0" }}>
+                          <span style={{ fontSize: "12px", color: "#94a3b8" }}>
+                            📅 Created At: {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "N/A"}
+                          </span>
                         </div>
 
                         <div className="card-controls-footer" style={{ paddingTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                           <span style={{ fontSize: "12px", color: "#94a3b8", fontWeight: 600 }}>Actions:</span>
-                          <div className="table-action-icons">
+                          <div className="table-action-icons" style={{ gap: "6px" }}>
                             <button
                               className="action-icon-btn view"
                               onClick={() => setViewingUser(u)}
                               title="View User Details"
                             >
                               👁️
+                            </button>
+                            <button
+                              className="action-icon-btn"
+                              onClick={() => handleToggleBlockUser(u)}
+                              title={u.isBlocked ? "Unblock Citizen" : "Block Citizen"}
+                              style={{
+                                background: u.isBlocked ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.15)",
+                                color: u.isBlocked ? "#4ade80" : "#f87171",
+                                borderColor: u.isBlocked ? "rgba(34, 197, 94, 0.35)" : "rgba(239, 68, 68, 0.35)",
+                                fontSize: "12px",
+                              }}
+                            >
+                              {u.isBlocked ? "🔓" : "🚫"}
                             </button>
                             <button
                               className="action-icon-btn delete"
