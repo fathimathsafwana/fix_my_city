@@ -99,14 +99,14 @@ function Home() {
                   className="btn report-btn"
                   onClick={() => navigate("/login")}
                 >
-                  Citizen Login
+                   Login
                 </button>
 
                 <button
                   className="btn login-btn"
                   onClick={() => navigate("/register")}
                 >
-                  Register Account
+                  Sign Up
                 </button>
               </>
             )}

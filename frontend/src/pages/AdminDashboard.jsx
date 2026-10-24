@@ -67,8 +67,17 @@ function AdminDashboard() {
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [userSearchQuery, setUserSearchQuery] = useState("");
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [creatingUser, setCreatingUser] = useState(false);
+  const [viewingUser, setViewingUser] = useState(null);
+  const [editingUser, setEditingUser] = useState(null);
+  const [editUserData, setEditUserData] = useState({
+    name: "",
+    email: "",
+    role: "user",
+    department: "",
+    password: "",
+  });
+  const [savingUser, setSavingUser] = useState(false);
+  const [showEditUserPassword, setShowEditUserPassword] = useState(false);
 
   // Users Pagination
   const [usersPage, setUsersPage] = useState(1);
@@ -539,6 +548,70 @@ function AdminDashboard() {
     }
   };
 
+  const handleOpenEditUser = (user) => {
+    setEditingUser(user);
+    setShowEditUserPassword(false);
+    setEditUserData({
+      name: user.name || "",
+      email: user.email || "",
+      role: user.role || "user",
+      department:
+        typeof user.department === "object" && user.department !== null
+          ? user.department._id
+          : user.department || "",
+      password: "",
+    });
+  };
+
+  const handleSaveEditUser = async (e) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    if (!editUserData.name.trim()) {
+      showToast("Please enter user name.", "error");
+      return;
+    }
+
+    setSavingUser(true);
+    try {
+      const payload = {
+        name: editUserData.name.trim(),
+        role: editUserData.role,
+        department:
+          editUserData.role === "department"
+            ? editUserData.department || null
+            : null,
+      };
+      if (editUserData.password.trim()) {
+        payload.password = editUserData.password.trim();
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/users/${editingUser._id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to update user.");
+      }
+
+      setUsers((prev) =>
+        prev.map((u) => (u._id === editingUser._id ? data.user : u))
+      );
+      showToast(`User "${data.user.name}" updated successfully!`, "success");
+      setEditingUser(null);
+      fetchUsers();
+    } catch (err) {
+      showToast(err.message || "Failed to update user.", "error");
+    } finally {
+      setSavingUser(false);
+    }
+  };
+
   const handleDeleteUser = async (userId, userName) => {
     if (!window.confirm(`Are you sure you want to delete user "${userName}"? This cannot be undone.`)) {
       return;
@@ -878,37 +951,210 @@ function AdminDashboard() {
         </div>
       )}
 
-      {/* Create User Modal */}
-      {isCreateModalOpen && (
-        <div
-          className="modal-overlay"
-          onClick={() => setIsCreateModalOpen(false)}
-        >
+      {/* View User / Citizen Modal */}
+      {viewingUser && (
+        <div className="modal-overlay" onClick={() => setViewingUser(null)}>
           <div
             className="modal-dialog"
             onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: "540px", maxHeight: "90vh", overflowY: "auto" }}
           >
             <div className="modal-header">
-              <h2 className="modal-title">➕ Create New User</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div
+                  className={`user-avatar-circle role-${viewingUser.role}`}
+                  style={{ width: "42px", height: "42px", fontSize: "18px" }}
+                >
+                  {viewingUser.name ? viewingUser.name.charAt(0).toUpperCase() : "U"}
+                </div>
+                <div>
+                  <h2 className="modal-title" style={{ margin: 0 }}>
+                    {viewingUser.name || "Citizen Account"}
+                  </h2>
+                  <span style={{ fontSize: "11px", color: "#94a3b8" }}>
+                    ID: #{viewingUser._id}
+                  </span>
+                </div>
+              </div>
               <button
                 className="modal-close-btn"
-                onClick={() => setIsCreateModalOpen(false)}
+                onClick={() => setViewingUser(null)}
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleCreateUser} className="modal-form">
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "14px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div>
+                  <label style={{ fontSize: "11px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>
+                    Email Address
+                  </label>
+                  <div style={{ fontSize: "13.5px", color: "#38bdf8", fontWeight: 600 }}>
+                    ✉️ {viewingUser.email}
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: "11px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>
+                    Account Role
+                  </label>
+                  <div>
+                    <span className={`user-role-badge role-${viewingUser.role}`}>
+                      {viewingUser.role === "admin"
+                        ? "🛡️ City Administrator"
+                        : viewingUser.role === "department"
+                        ? "🏢 Department Officer"
+                        : "👤 Platform Citizen"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {viewingUser.role === "department" && (
+                <div>
+                  <label style={{ fontSize: "11px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>
+                    Assigned Municipal Department
+                  </label>
+                  <div style={{ fontSize: "13.5px", color: "#a855f7", fontWeight: 600 }}>
+                    🏢{" "}
+                    {typeof viewingUser.department === "object" && viewingUser.department !== null
+                      ? viewingUser.department.name
+                      : departments.find((d) => d._id === viewingUser.department)?.name || "Unassigned"}
+                  </div>
+                </div>
+              )}
+
+              {/* Statistics Grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div style={{ background: "rgba(56, 189, 248, 0.08)", border: "1px solid rgba(56, 189, 248, 0.2)", borderRadius: "8px", padding: "12px" }}>
+                  <div style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 700 }}>
+                    Reported Complaints
+                  </div>
+                  <div style={{ fontSize: "20px", fontWeight: 800, color: "#38bdf8", marginTop: "4px" }}>
+                    {issues.filter((i) => (typeof i.user === "object" && i.user !== null ? i.user._id : i.user) === viewingUser._id).length}
+                  </div>
+                </div>
+
+                <div style={{ background: "rgba(163, 230, 53, 0.08)", border: "1px solid rgba(163, 230, 53, 0.2)", borderRadius: "8px", padding: "12px" }}>
+                  <div style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase", fontWeight: 700 }}>
+                    Feedbacks & Reviews
+                  </div>
+                  <div style={{ fontSize: "20px", fontWeight: 800, color: "#a3e635", marginTop: "4px" }}>
+                    {feedbacks.filter((f) => (typeof f.user === "object" && f.user !== null ? f.user._id : f.user) === viewingUser._id).length}
+                  </div>
+                </div>
+              </div>
+
+              {/* Recent Complaints by this Citizen */}
+              <div>
+                <label style={{ fontSize: "11px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", display: "block", marginBottom: "6px" }}>
+                  Recent Grievances Filed
+                </label>
+                {(() => {
+                  const userIssues = issues.filter((i) => (typeof i.user === "object" && i.user !== null ? i.user._id : i.user) === viewingUser._id);
+                  if (userIssues.length === 0) {
+                    return (
+                      <div style={{ fontSize: "12.5px", color: "#94a3b8", fontStyle: "italic", padding: "6px 0" }}>
+                        No complaints filed by this user yet.
+                      </div>
+                    );
+                  }
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "160px", overflowY: "auto" }}>
+                      {userIssues.slice(0, 5).map((issue) => (
+                        <div
+                          key={issue._id}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            background: "rgba(255,255,255,0.03)",
+                            border: "1px solid rgba(255,255,255,0.06)",
+                            borderRadius: "6px",
+                            padding: "8px 12px",
+                          }}
+                        >
+                          <div>
+                            <span style={{ color: "#f8fafc", fontWeight: 600, fontSize: "13px" }}>
+                              #{issue._id.slice(-6)} · {issue.title}
+                            </span>
+                            <span style={{ display: "block", color: "#94a3b8", fontSize: "11.5px" }}>
+                              {issue.category}
+                            </span>
+                          </div>
+                          <span
+                            className={`status-pill status-${(issue.status || "submitted").toLowerCase().replace(/\s+/g, "-")}`}
+                            style={{ fontSize: "11px", padding: "2px 8px" }}
+                          >
+                            {issue.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px", paddingTop: "14px", borderTop: "1px solid rgba(255, 255, 255, 0.08)" }}>
+                <span style={{ fontSize: "12px", color: "#94a3b8" }}>
+                  Registered: {viewingUser.createdAt ? new Date(viewingUser.createdAt).toLocaleDateString() : "Active"}
+                </span>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button
+                    type="button"
+                    className="btn-modal-cancel"
+                    onClick={() => {
+                      const userToEdit = viewingUser;
+                      setViewingUser(null);
+                      handleOpenEditUser(userToEdit);
+                    }}
+                  >
+                    ✏️ Edit User
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-modal-submit"
+                    onClick={() => setViewingUser(null)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {editingUser && (
+        <div className="modal-overlay" onClick={() => setEditingUser(null)}>
+          <div
+            className="modal-dialog"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: "480px" }}
+          >
+            <div className="modal-header">
+              <h2 className="modal-title">✏️ Edit User Account</h2>
+              <button
+                className="modal-close-btn"
+                onClick={() => setEditingUser(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditUser} className="modal-form">
               <div className="modal-form-group">
-                <label>Full Name</label>
+                <label>Full Name *</label>
                 <input
                   type="text"
-                  placeholder="e.g. John Doe"
                   required
-                  value={newUserData.name}
+                  value={editUserData.name}
                   onChange={(e) =>
-                    setNewUserData({ ...newUserData, name: e.target.value })
+                    setEditUserData({ ...editUserData, name: e.target.value })
                   }
+                  placeholder="e.g. John Doe"
                 />
               </div>
 
@@ -916,31 +1162,65 @@ function AdminDashboard() {
                 <label>Email Address</label>
                 <input
                   type="email"
-                  placeholder="e.g. user@gmail.com"
-                  required
-                  value={newUserData.email}
-                  onChange={(e) =>
-                    setNewUserData({ ...newUserData, email: e.target.value })
-                  }
+                  disabled
+                  style={{ opacity: 0.65, cursor: "not-allowed" }}
+                  value={editUserData.email}
+                  title="Email cannot be changed"
                 />
+                <span style={{ fontSize: "11px", color: "#94a3b8", marginTop: "3px", display: "block" }}>
+                  User email is fixed as the unique login credential.
+                </span>
               </div>
 
               <div className="modal-form-group">
-                <label>Password</label>
+                <label>Account Role *</label>
+                <select
+                  value={editUserData.role}
+                  onChange={(e) =>
+                    setEditUserData({ ...editUserData, role: e.target.value })
+                  }
+                >
+                  <option value="user">👤 Citizen</option>
+                  <option value="admin">🛡️ City Administrator</option>
+                  <option value="department">🏢 Department Officer</option>
+                </select>
+              </div>
+
+              {editUserData.role === "department" && (
+                <div className="modal-form-group">
+                  <label>Assign Department *</label>
+                  <select
+                    value={editUserData.department}
+                    required={editUserData.role === "department"}
+                    onChange={(e) =>
+                      setEditUserData({ ...editUserData, department: e.target.value })
+                    }
+                  >
+                    <option value="">-- Select Department --</option>
+                    {departments.map((dept) => (
+                      <option key={dept._id} value={dept._id}>
+                        {dept.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="modal-form-group">
+                <label>Reset Password (leave blank to keep current)</label>
                 <div style={{ position: "relative" }}>
                   <input
-                    type={showUserPassword ? "text" : "password"}
-                    placeholder="Set initial password"
-                    required
+                    type={showEditUserPassword ? "text" : "password"}
+                    placeholder="Enter new password (optional)"
                     style={{ width: "100%", paddingRight: "45px" }}
-                    value={newUserData.password}
+                    value={editUserData.password}
                     onChange={(e) =>
-                      setNewUserData({ ...newUserData, password: e.target.value })
+                      setEditUserData({ ...editUserData, password: e.target.value })
                     }
                   />
                   <button
                     type="button"
-                    onClick={() => setShowUserPassword(!showUserPassword)}
+                    onClick={() => setShowEditUserPassword(!showEditUserPassword)}
                     style={{
                       position: "absolute",
                       right: "10px",
@@ -952,43 +1232,27 @@ function AdminDashboard() {
                       fontSize: "18px",
                       padding: 0,
                     }}
-                    title={showUserPassword ? "Hide password" : "Show password"}
+                    title={showEditUserPassword ? "Hide password" : "Show password"}
                   >
-                    {showUserPassword ? "🙈" : "👁️"}
+                    {showEditUserPassword ? "🙈" : "👁️"}
                   </button>
                 </div>
-              </div>
-
-              <div className="modal-form-group">
-                <label>Account Role</label>
-                <select
-                  value={newUserData.role}
-                  onChange={(e) =>
-                    setNewUserData({
-                      ...newUserData,
-                      role: e.target.value,
-                    })
-                  }
-                >
-                  <option value="user">👤 Citizen (User)</option>
-                  <option value="admin">🛡️ City Administrator</option>
-                </select>
               </div>
 
               <div className="modal-actions">
                 <button
                   type="button"
                   className="btn-modal-cancel"
-                  onClick={() => setIsCreateModalOpen(false)}
+                  onClick={() => setEditingUser(null)}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   className="btn-modal-submit"
-                  disabled={creatingUser}
+                  disabled={savingUser}
                 >
-                  {creatingUser ? "Creating..." : "Create User"}
+                  {savingUser ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </form>
@@ -2570,14 +2834,6 @@ function AdminDashboard() {
                     </button>
                   </div>
 
-                  <button
-                    className="btn-add-user"
-                    onClick={() => setIsCreateModalOpen(true)}
-                    title="Create a new platform user"
-                  >
-                    ➕ Add User
-                  </button>
-
                   {userSearchQuery && (
                     <button
                       className="btn-toolbar-reset"
@@ -2627,7 +2883,7 @@ function AdminDashboard() {
                           <th className="col-u-user">User</th>
                           <th className="col-u-role">Role</th>
                           <th className="col-u-date">Joined On</th>
-                          <th className="col-u-act" style={{ textAlign: "right", paddingRight: "24px" }}>Actions</th>
+                          <th style={{ width: "110px", textAlign: "center" }}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2669,15 +2925,31 @@ function AdminDashboard() {
                                 </span>
                               </td>
 
-                              {/* Actions (Delete) */}
-                              <td style={{ textAlign: "right", paddingRight: "24px" }}>
-                                <button
-                                  className="btn-delete-user"
-                                  onClick={() => handleDeleteUser(u._id, u.name)}
-                                  title="Delete user account"
-                                >
-                                  🗑️ Delete
-                                </button>
+                              {/* Actions (View, Edit, Delete) */}
+                              <td style={{ textAlign: "center" }}>
+                                <div className="table-action-icons" style={{ justifyContent: "center" }}>
+                                  <button
+                                    className="action-icon-btn view"
+                                    onClick={() => setViewingUser(u)}
+                                    title="View User Details"
+                                  >
+                                    👁️
+                                  </button>
+                                  <button
+                                    className="action-icon-btn edit"
+                                    onClick={() => handleOpenEditUser(u)}
+                                    title="Edit User"
+                                  >
+                                    ✏️
+                                  </button>
+                                  <button
+                                    className="action-icon-btn delete"
+                                    onClick={() => handleDeleteUser(u._id, u.name)}
+                                    title="Delete User"
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -2714,14 +2986,31 @@ function AdminDashboard() {
                           </span>
                         </div>
 
-                        <div className="user-card-controls" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
-                          <button
-                            className="btn-delete-user"
-                            style={{ margin: 0 }}
-                            onClick={() => handleDeleteUser(u._id, u.name)}
-                          >
-                            🗑️ Delete User
-                          </button>
+                        <div className="card-controls-footer" style={{ paddingTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: "12px", color: "#94a3b8", fontWeight: 600 }}>Actions:</span>
+                          <div className="table-action-icons">
+                            <button
+                              className="action-icon-btn view"
+                              onClick={() => setViewingUser(u)}
+                              title="View User Details"
+                            >
+                              👁️
+                            </button>
+                            <button
+                              className="action-icon-btn edit"
+                              onClick={() => handleOpenEditUser(u)}
+                              title="Edit User"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              className="action-icon-btn delete"
+                              onClick={() => handleDeleteUser(u._id, u.name)}
+                              title="Delete User"
+                            >
+                              🗑️
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
