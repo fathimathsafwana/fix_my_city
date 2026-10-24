@@ -2209,7 +2209,7 @@ function AdminDashboard() {
                       <thead>
                         <tr>
                           <th className="col-id">Complaint ID</th>
-                          <th className="col-info">Category & Title</th>
+                          <th className="col-info">Title</th>
                           <th className="col-dept">Department</th>
                           <th className="col-date">Reported Date</th>
                           <th className="col-status">Current Status</th>
@@ -2245,24 +2245,9 @@ function AdminDashboard() {
                               </td>
 
                               <td>
-                                <div className="td-issue-info">
-                                  <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                                    <span className="category-pill" style={{ width: "fit-content", padding: "2px 8px", fontSize: "11px" }}>
-                                      {getCategoryIcon(issue.category)} {issue.category || "General"}
-                                    </span>
-                                    {issue.user && (
-                                      <span style={{ fontSize: "11px", color: "#94a3b8", display: "inline-flex", alignItems: "center", gap: "3px" }}>
-                                        👤 {typeof issue.user === "object" ? `${issue.user.name || "Citizen"} (${issue.user.email})` : "Citizen"}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <span className="td-issue-title" title={issue.title}>
-                                    {issue.title}
-                                  </span>
-                                  <span className="td-issue-desc" title={issue.description}>
-                                    {issue.description}
-                                  </span>
-                                </div>
+                                <span className="td-issue-title" title={issue.title} style={{ fontSize: "14px", fontWeight: 600, color: "#f8fafc" }}>
+                                  {issue.title}
+                                </span>
                               </td>
 
                               <td>
