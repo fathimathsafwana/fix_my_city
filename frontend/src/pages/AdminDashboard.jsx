@@ -2862,20 +2862,6 @@ function AdminDashboard() {
                     <span className="stat-label">Unassigned Complaints</span>
                   </div>
                 </div>
-
-                <div
-                  className="stat-card"
-                  style={{ borderColor: "rgba(168, 85, 247, 0.3)" }}
-                  title="Registered officers across all departments"
-                >
-                  <div className="stat-icon">👥</div>
-                  <div className="stat-info">
-                    <span className="stat-value" style={{ color: "#c084fc" }}>
-                      {users.filter((u) => u.role === "department").length}
-                    </span>
-                    <span className="stat-label">Department Officers</span>
-                  </div>
-                </div>
               </div>
 
               {/* Departments Toolbar - Top of Table */}
