@@ -1905,7 +1905,7 @@ function AdminDashboard() {
                   )
                 ) : activeTab === "users" ? (
                   <>
-                    <span className="accent-text">Users</span> & Roles
+                    <span className="accent-text">Users</span>
                   </>
                 ) : activeTab === "departments" ? (
                   <>
@@ -1923,7 +1923,7 @@ function AdminDashboard() {
                     ? `Complaints pending municipal department assignment • ${complaintStats.total} complaints`
                     : currentDept
                     ? `Managing complaints assigned to ${currentDept.name} • ${complaintStats.total} complaints`
-                    : `Central civic grievance repository • Showing all ${complaintStats.total} complaints across the city`
+                    : `Central civic grievance repository`
                   : activeTab === "users"
                   ? `Platform user directory `
                   : activeTab === "departments"
