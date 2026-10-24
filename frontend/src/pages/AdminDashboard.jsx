@@ -2662,7 +2662,6 @@ function AdminDashboard() {
                       <thead>
                         <tr>
                           <th className="col-u-user">User</th>
-                          <th className="col-u-role">Role</th>
                           <th className="col-u-date">Joined On</th>
                           <th style={{ width: "110px", textAlign: "center" }}>Actions</th>
                         </tr>
@@ -2682,15 +2681,6 @@ function AdminDashboard() {
                                     <span className="user-email-text">{u.email}</span>
                                   </div>
                                 </div>
-                              </td>
-
-                              {/* Role Badge */}
-                              <td>
-                                <span className={`user-role-badge role-${u.role}`}>
-                                  {u.role === "admin"
-                                    ? "🛡️ Admin"
-                                    : "👤 Citizen"}
-                                </span>
                               </td>
 
                               {/* Joined Date */}
@@ -2752,12 +2742,6 @@ function AdminDashboard() {
                               <span className="user-email-text">{u.email}</span>
                             </div>
                           </div>
-
-                          <span className={`user-role-badge role-${u.role}`}>
-                            {u.role === "admin"
-                              ? "🛡️ Admin"
-                              : "👤 Citizen"}
-                          </span>
                         </div>
 
                         <div className="card-controls-footer" style={{ paddingTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
