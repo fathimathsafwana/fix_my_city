@@ -1892,19 +1892,15 @@ function AdminDashboard() {
                 {activeTab === "complaints" ? (
                   departmentFilter === "Unassigned" ? (
                     <>
-                      <span className="dept-head-icon">⚠️</span>
                       <span>Unassigned Complaints</span>
                     </>
                   ) : currentDept ? (
                     <>
-                      <span className="dept-head-icon">
-                        {getDeptIcon(currentDept.name)}
-                      </span>
                       <span>{currentDept.name}</span>
                     </>
                   ) : (
                     <>
-                      <span className="accent-text">📋 Complaints</span> Center
+                      <span className="accent-text">Complaints</span>
                     </>
                   )
                 ) : activeTab === "users" ? (
@@ -1917,7 +1913,7 @@ function AdminDashboard() {
                   </>
                 ) : (
                   <>
-                    <span className="accent-text">⭐ Citizen</span> Feedback & Reviews
+                    <span className="accent-text">Reviews</span>
                   </>
                 )}
               </h1>
