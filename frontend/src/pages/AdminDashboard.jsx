@@ -1753,11 +1753,11 @@ function AdminDashboard() {
                 setSearchQuery("");
                 setIsMobileOpen(false);
               }}
-              title="Complaints Center - View All Complaints"
+              title="Complaints - View All Complaints"
             >
               <span className="nav-item-icon">📋</span>
               {!isCollapsed && (
-                <span className="nav-item-label">Complaints Center</span>
+                <span className="nav-item-label">Complaints</span>
               )}
               {!isCollapsed && (
                 <span className="nav-item-badge">{issues.length}</span>
@@ -1771,11 +1771,11 @@ function AdminDashboard() {
                 setUserSearchQuery("");
                 setIsMobileOpen(false);
               }}
-              title="Manage Platform Users - View All Users"
+              title="Users - View All Users"
             >
               <span className="nav-item-icon">👥</span>
               {!isCollapsed && (
-                <span className="nav-item-label">Manage Users</span>
+                <span className="nav-item-label">Users</span>
               )}
               {!isCollapsed && (
                 <span
@@ -1799,11 +1799,11 @@ function AdminDashboard() {
                 setDepartmentsPage(1);
                 setIsMobileOpen(false);
               }}
-              title="Manage Municipal Departments"
+              title="Departments - Manage Departments"
             >
               <span className="nav-item-icon">🏢</span>
               {!isCollapsed && (
-                <span className="nav-item-label">Manage Department</span>
+                <span className="nav-item-label">Departments</span>
               )}
               {!isCollapsed && (
                 <span
@@ -1828,11 +1828,11 @@ function AdminDashboard() {
                 setFeedbackPage(1);
                 setIsMobileOpen(false);
               }}
-              title="Citizen Reviews"
+              title="Reviews - Citizen Reviews"
             >
               <span className="nav-item-icon">⭐</span>
               {!isCollapsed && (
-                <span className="nav-item-label">Feedbacks & Reviews</span>
+                <span className="nav-item-label">Reviews</span>
               )}
               {!isCollapsed && (
                 <span
@@ -1909,7 +1909,7 @@ function AdminDashboard() {
                   </>
                 ) : activeTab === "departments" ? (
                   <>
-                    <span className="accent-text">Municipal</span> Departments
+                    <span className="accent-text">Departments</span>
                   </>
                 ) : (
                   <>
@@ -1928,7 +1928,7 @@ function AdminDashboard() {
                   ? `Platform user directory `
                   : activeTab === "departments"
                   ? `Municipal department directory`
-                  : `Citizen satisfaction reviews, service ratings & portal feedback • Showing all ${feedbackStats.total} reviews`}
+                  : `Citizen satisfaction reviews, service ratings & portal feedback`}
               </p>
             </div>
           </div>
