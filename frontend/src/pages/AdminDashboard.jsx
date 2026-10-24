@@ -1183,7 +1183,7 @@ function AdminDashboard() {
             <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "14px" }}>
               <div>
                 <label style={{ fontSize: "11px", fontWeight: "700", color: "#94a3b8", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>
-                  Description / Responsibilities
+                  Description
                 </label>
                 <div style={{ fontSize: "14px", color: "#cbd5e1", lineHeight: "1.5", background: "rgba(0,0,0,0.25)", padding: "10px 14px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.06)" }}>
                   {viewingDept.description || "No description provided."}
@@ -1866,7 +1866,7 @@ function AdminDashboard() {
                 setFeedbackPage(1);
                 setIsMobileOpen(false);
               }}
-              title="Citizen Feedbacks & Reviews"
+              title="Citizen Reviews"
             >
               <span className="nav-item-icon">⭐</span>
               {!isCollapsed && (
@@ -2988,31 +2988,13 @@ function AdminDashboard() {
                     <table className="pro-table">
                       <thead>
                         <tr>
-                          <th style={{ minWidth: "300px" }}>Department Name</th>
-                          <th style={{ minWidth: "260px" }}>Description & Scope</th>
-                          <th style={{ width: "110px", textAlign: "center" }}>Staff</th>
-                          <th style={{ width: "140px", textAlign: "center" }}>Complaints</th>
-                          <th style={{ width: "130px" }}>Created Date</th>
-                          <th style={{ width: "110px", textAlign: "center" }}>Actions</th>
+                          <th>Department Name</th>
+                          <th style={{ width: "160px" }}>Created Date</th>
+                          <th style={{ width: "120px", textAlign: "center" }}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {paginatedDepartments.map((dept) => {
-                          const assignedIssuesCount = issues.filter(
-                            (i) =>
-                              (typeof i.department === "object" && i.department !== null
-                                ? i.department._id
-                                : i.department) === dept._id
-                          ).length;
-
-                          const staffCount = users.filter(
-                            (u) =>
-                              u.role === "department" &&
-                              (typeof u.department === "object" && u.department !== null
-                                ? u.department._id
-                                : u.department) === dept._id
-                          ).length;
-
                           const deptOfficer = users.find(
                             (u) =>
                               u.role === "department" &&
@@ -3025,9 +3007,6 @@ function AdminDashboard() {
                             <tr key={dept._id}>
                               <td>
                                 <div className="dept-name-cell">
-                                  <div className="dept-avatar-badge">
-                                    {getDeptIcon(dept.name)}
-                                  </div>
                                   <div className="dept-name-details">
                                     <span className="dept-title-text">
                                       {dept.name}
@@ -3049,38 +3028,6 @@ function AdminDashboard() {
                                     </div>
                                   </div>
                                 </div>
-                              </td>
-
-                              <td>
-                                <span className="td-issue-desc" title={dept.description} style={{ maxWidth: "340px" }}>
-                                  {dept.description || "—"}
-                                </span>
-                              </td>
-
-                              <td style={{ textAlign: "center" }}>
-                                <span
-                                  className="dept-badge"
-                                  style={{
-                                    background: staffCount > 0 ? "rgba(168, 85, 247, 0.15)" : "rgba(255, 255, 255, 0.05)",
-                                    color: staffCount > 0 ? "#c084fc" : "#94a3b8",
-                                    borderColor: staffCount > 0 ? "rgba(168, 85, 247, 0.3)" : "rgba(255, 255, 255, 0.1)",
-                                  }}
-                                >
-                                  👤 {staffCount} Staff
-                                </span>
-                              </td>
-
-                              <td style={{ textAlign: "center" }}>
-                                <span
-                                  className="dept-badge"
-                                  style={{
-                                    background: assignedIssuesCount > 0 ? "rgba(56, 189, 248, 0.15)" : "rgba(255, 255, 255, 0.05)",
-                                    color: assignedIssuesCount > 0 ? "#38bdf8" : "#94a3b8",
-                                    borderColor: assignedIssuesCount > 0 ? "rgba(56, 189, 248, 0.3)" : "rgba(255, 255, 255, 0.1)",
-                                  }}
-                                >
-                                  📋 {assignedIssuesCount} Complaints
-                                </span>
                               </td>
 
                               <td>
@@ -3135,35 +3082,16 @@ function AdminDashboard() {
               {filteredDepartments.length > 0 && viewMode === "cards" && (
                 <div className="dashboard-cards-grid">
                   {paginatedDepartments.map((dept) => {
-                    const assignedIssuesCount = issues.filter(
-                      (i) =>
-                        (typeof i.department === "object" && i.department !== null
-                          ? i.department._id
-                          : i.department) === dept._id
-                    ).length;
-
-                    const staffCount = users.filter(
-                      (u) =>
-                        u.role === "department" &&
-                        (typeof u.department === "object" && u.department !== null
-                          ? u.department._id
-                          : u.department) === dept._id
-                    ).length;
-
                     return (
                       <div className="dashboard-card" key={dept._id}>
                         <div className="card-top-bar">
                           <span className="category-pill" style={{ background: "rgba(168, 85, 247, 0.15)", color: "#c084fc", borderColor: "rgba(168, 85, 247, 0.3)" }}>
-                            <span className="cat-icon">{getDeptIcon(dept.name)}</span>
                             {dept.name}
                           </span>
                           <span className="id-chip">#{dept._id ? dept._id.slice(-6) : "ID"}</span>
                         </div>
 
                         <div className="card-content-area" style={{ margin: "10px 0" }}>
-                          <p className="card-description" style={{ fontSize: "13.5px", color: "#cbd5e1", marginBottom: "6px" }}>
-                            {dept.description || "No description specified."}
-                          </p>
                           {dept.email && (
                             <span style={{ fontSize: "11.5px", color: "#38bdf8", fontWeight: 600 }}>
                               ✉️ {dept.email}
@@ -3174,12 +3102,6 @@ function AdminDashboard() {
                         <div className="card-meta-chips-row">
                           <span className="meta-chip">
                             📅 {dept.createdAt ? new Date(dept.createdAt).toLocaleDateString() : "Active"}
-                          </span>
-                          <span className="meta-chip" style={{ color: "#c084fc" }}>
-                            👤 {staffCount} Staff
-                          </span>
-                          <span className="meta-chip" style={{ color: "#38bdf8" }}>
-                            📋 {assignedIssuesCount} Complaints
                           </span>
                         </div>
 
