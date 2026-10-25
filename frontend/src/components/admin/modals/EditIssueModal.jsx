@@ -56,20 +56,6 @@ export default function EditIssueModal({
           </div>
 
           <div className="modal-form-group">
-            <label>Current Status</label>
-            <select
-              value={currentStatus}
-              onChange={(e) =>
-                setEditFormData({ ...editFormData, status: e.target.value })
-              }
-            >
-              <option value="Pending">⏳ Pending</option>
-              <option value="Assigned">📋 Assigned</option>
-              <option value="Rejected">❌ Rejected</option>
-            </select>
-          </div>
-
-          <div className="modal-form-group">
             <label>Assigned Department</label>
             <select
               value={currentDept}
@@ -83,6 +69,20 @@ export default function EditIssueModal({
                   {dept.name}
                 </option>
               ))}
+            </select>
+          </div>
+
+          <div className="modal-form-group">
+            <label>Current Status</label>
+            <select
+              value={currentStatus}
+              onChange={(e) =>
+                setEditFormData({ ...editFormData, status: e.target.value })
+              }
+            >
+              <option value="Pending">⏳ Pending</option>
+              <option value="Assigned">📋 Assigned</option>
+              <option value="Rejected">❌ Rejected</option>
             </select>
           </div>
 

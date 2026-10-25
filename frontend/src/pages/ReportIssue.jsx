@@ -205,16 +205,45 @@ function ReportIssue() {
                   <strong>Selected Photo:</strong>
                 </p>
 
-                <img
-                  src={URL.createObjectURL(photo)}
-                  alt="Selected complaint"
-                  style={{
-                    width: "250px",
-                    maxHeight: "200px",
-                    objectFit: "cover",
-                    borderRadius: "8px",
-                  }}
-                />
+                <div style={{ position: "relative", display: "inline-block" }}>
+                  <img
+                    src={URL.createObjectURL(photo)}
+                    alt="Selected complaint"
+                    style={{
+                      width: "250px",
+                      maxHeight: "200px",
+                      objectFit: "cover",
+                      borderRadius: "8px",
+                      display: "block",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPhoto(null)}
+                    title="Remove selected photo"
+                    aria-label="Remove photo"
+                    style={{
+                      position: "absolute",
+                      top: "6px",
+                      right: "6px",
+                      background: "rgba(0, 0, 0, 0.75)",
+                      color: "#ffffff",
+                      border: "1px solid rgba(255, 255, 255, 0.2)",
+                      borderRadius: "50%",
+                      width: "28px",
+                      height: "28px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      fontWeight: 700,
+                      transition: "background 0.2s ease",
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
             )}
           </div>

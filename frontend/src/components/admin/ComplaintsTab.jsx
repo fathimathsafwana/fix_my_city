@@ -54,6 +54,24 @@ export default function ComplaintsTab({
           </div>
 
           <div className="toolbar-control-group">
+            <label className="toolbar-control-label" htmlFor="status-select-filter">
+              <span className="toolbar-icon">⚡</span> Status:
+            </label>
+            <select
+              id="status-select-filter"
+              className="toolbar-select toolbar-select-status"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              title="Filter complaints by workflow status"
+            >
+              <option value="All">📊 All Statuses ({issues.length})</option>
+              <option value="Pending">⏳ Pending ({complaintStats.pending || 0})</option>
+              <option value="Assigned">📋 Assigned ({complaintStats.assigned || 0})</option>
+              <option value="Rejected">❌ Rejected ({complaintStats.rejected || 0})</option>
+            </select>
+          </div>
+
+          <div className="toolbar-control-group">
             <label className="toolbar-control-label" htmlFor="dept-select-filter">
               <span className="toolbar-icon">🏢</span> Department:
             </label>
@@ -78,24 +96,6 @@ export default function ComplaintsTab({
                   );
                 })}
               </optgroup>
-            </select>
-          </div>
-
-          <div className="toolbar-control-group">
-            <label className="toolbar-control-label" htmlFor="status-select-filter">
-              <span className="toolbar-icon">⚡</span> Status:
-            </label>
-            <select
-              id="status-select-filter"
-              className="toolbar-select toolbar-select-status"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              title="Filter complaints by workflow status"
-            >
-              <option value="All">📊 All Statuses ({issues.length})</option>
-              <option value="Pending">⏳ Pending ({complaintStats.pending || 0})</option>
-              <option value="Assigned">📋 Assigned ({complaintStats.assigned || 0})</option>
-              <option value="Rejected">❌ Rejected ({complaintStats.rejected || 0})</option>
             </select>
           </div>
         </div>
@@ -153,9 +153,9 @@ export default function ComplaintsTab({
                 <tr>
                   <th className="col-id">Complaint ID</th>
                   <th className="col-info">Title</th>
-                  <th className="col-dept">Department</th>
-                  <th className="col-date">Reported</th>
                   <th className="col-status">Status</th>
+                  <th className="col-date">Reported</th>
+                  <th className="col-dept">Department</th>
                   <th className="col-action">Quick Actions</th>
                 </tr>
               </thead>
@@ -181,14 +181,13 @@ export default function ComplaintsTab({
                         </div>
                       </td>
 
-                      <td className="col-dept">
-                        {deptObj ? (
-                          <span className="dept-tag">
-                            {getDeptIcon(deptObj.name)} {deptObj.name}
-                          </span>
-                        ) : (
-                          <span className="unassigned-tag">⚠️ Unassigned</span>
-                        )}
+                      <td className="col-status">
+                        <span className={`pro-status-badge ${getStatusClass(issue.status)}`}>
+                          <span className="status-dot"></span>
+                          {!issue.status || issue.status === "Submitted"
+                            ? "Pending"
+                            : issue.status}
+                        </span>
                       </td>
 
                       <td className="col-date">
@@ -197,13 +196,14 @@ export default function ComplaintsTab({
                           : "Recent"}
                       </td>
 
-                      <td className="col-status">
-                        <span className={`pro-status-badge ${getStatusClass(issue.status)}`}>
-                          <span className="status-dot"></span>
-                          {!issue.status || issue.status === "Submitted"
-                            ? "Pending"
-                            : issue.status}
-                        </span>
+                      <td className="col-dept">
+                        {deptObj ? (
+                          <span className="dept-tag">
+                            {getDeptIcon(deptObj.name)} {deptObj.name}
+                          </span>
+                        ) : (
+                          <span className="unassigned-tag">⚠️ Unassigned</span>
+                        )}
                       </td>
 
                       <td className="col-action">

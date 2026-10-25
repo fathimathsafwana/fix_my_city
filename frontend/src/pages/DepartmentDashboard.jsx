@@ -7,6 +7,7 @@ import ViewIssueModal from "../components/admin/modals/ViewIssueModal";
 import DeleteConfirmationModal from "../components/DeleteConfirmationModal";
 import { API_BASE_URL } from "../config";
 import { getAuthHeaders, getCurrentUser } from "../utils/auth";
+import { getPhotoUrl } from "../utils/constants";
 
 function DepartmentDashboard() {
   const { showToast } = useToast();
@@ -18,6 +19,11 @@ function DepartmentDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [updatingId, setUpdatingId] = useState(null);
+
+  // Completed work photo upload states
+  const [uploadingPhotoId, setUploadingPhotoId] = useState(null);
+  const [selectedPhotos, setSelectedPhotos] = useState({});
+  const [photoPreviews, setPhotoPreviews] = useState({});
 
   // Modal States for View & Delete
   const [viewingIssue, setViewingIssue] = useState(null);
@@ -118,10 +124,94 @@ function DepartmentDashboard() {
     fetchUsers();
   }, []);
 
+  const handlePhotoSelect = (issueId, file) => {
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      showToast("Photo must be less than 10MB in size.", "error");
+      return;
+    }
+
+    setSelectedPhotos((prev) => ({
+      ...prev,
+      [issueId]: file,
+    }));
+
+    const previewUrl = URL.createObjectURL(file);
+    setPhotoPreviews((prev) => ({
+      ...prev,
+      [issueId]: previewUrl,
+    }));
+  };
+
+  const handleCancelPhotoSelect = (issueId) => {
+    setSelectedPhotos((prev) => {
+      const copy = { ...prev };
+      delete copy[issueId];
+      return copy;
+    });
+    setPhotoPreviews((prev) => {
+      const copy = { ...prev };
+      delete copy[issueId];
+      return copy;
+    });
+  };
+
+  const handleUploadResolvedPhoto = async (issueId) => {
+    const file = selectedPhotos[issueId];
+    if (!file) {
+      showToast("Please select a completed work proof photo first.", "warning");
+      return;
+    }
+
+    setUploadingPhotoId(issueId);
+    try {
+      const formData = new FormData();
+      formData.append("resolvedPhoto", file);
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/issues/${issueId}/resolved-photo`,
+        {
+          method: "PUT",
+          headers: getAuthHeaders(),
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to upload resolved photo proof");
+      }
+
+      setIssues((currentIssues) =>
+        currentIssues.map((item) =>
+          item._id === issueId
+            ? data.issue
+              ? data.issue
+              : { ...item, status: "Resolved", resolvedPhoto: data.resolvedPhoto || data.url }
+            : item
+        )
+      );
+
+      handleCancelPhotoSelect(issueId);
+      showToast("Proof photo uploaded and complaint marked as Resolved!", "success");
+    } catch (error) {
+      console.error(error);
+      showToast(error.message || "Cannot connect to server to upload photo.", "error");
+    } finally {
+      setUploadingPhotoId(null);
+    }
+  };
+
   const handleStatusChange = async (issueId, newStatus) => {
     const targetIssue = issues.find((i) => i._id === issueId);
     if (targetIssue && (targetIssue.status === "Resolved" || targetIssue.resolvedPhoto)) {
       showToast("Resolved complaints are closed and cannot be modified.", "warning");
+      return;
+    }
+
+    if (newStatus === "Resolved" && (!targetIssue || !targetIssue.resolvedPhoto)) {
+      showToast("Proof image of completed work is required before marking as Resolved.", "warning");
       return;
     }
 
@@ -550,6 +640,106 @@ function DepartmentDashboard() {
                       </div>
                     </div>
 
+                    {/* Photos Strip (Original Problem Photo & Completed Work Photo side-by-side) */}
+                    {(issue.photo || issue.resolvedPhoto) && (
+                      <div className="card-photos-strip">
+                        {issue.photo && (
+                          <div
+                            className="photo-strip-item"
+                            onClick={() =>
+                              setLightboxImage({
+                                url: getPhotoUrl(issue.photo, API_BASE_URL),
+                                title: issue.title || "Citizen Report Photo",
+                                type: "Reported Problem Photo",
+                              })
+                            }
+                            title="Click to zoom Problem Photo"
+                          >
+                            <img
+                              src={getPhotoUrl(issue.photo, API_BASE_URL)}
+                              alt="Reported problem"
+                              loading="lazy"
+                            />
+                            <span className="photo-strip-tag">Problem</span>
+                            <span className="photo-strip-zoom-hint">🔍 Expand</span>
+                          </div>
+                        )}
+                        {issue.resolvedPhoto && (
+                          <div
+                            className="photo-strip-item"
+                            onClick={() =>
+                              setLightboxImage({
+                                url: getPhotoUrl(issue.resolvedPhoto, API_BASE_URL),
+                                title: issue.title || "Completed Work Proof",
+                                type: "Completed Work Proof",
+                              })
+                            }
+                            style={{ borderColor: "#10b981" }}
+                            title="Click to zoom Resolved Proof"
+                          >
+                            <img
+                              src={getPhotoUrl(issue.resolvedPhoto, API_BASE_URL)}
+                              alt="Completed work proof"
+                              loading="lazy"
+                            />
+                            <span className="photo-strip-tag resolved">✅ Resolved</span>
+                            <span className="photo-strip-zoom-hint">🔍 Expand</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Compact Upload Completed Work Photo Section */}
+                    {issue.status !== "Resolved" && !issue.resolvedPhoto && (
+                      <div className="compact-upload-box" style={{ margin: "10px 0" }}>
+                        {photoPreviews[issue._id] ? (
+                          <div style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%" }}>
+                            <img
+                              src={photoPreviews[issue._id]}
+                              alt="Preview"
+                              style={{ width: "40px", height: "40px", borderRadius: "6px", objectFit: "cover" }}
+                            />
+                            <button
+                              className="btn-upload-resolved"
+                              style={{ padding: "6px 12px", fontSize: "12px" }}
+                              disabled={uploadingPhotoId === issue._id}
+                              onClick={() => handleUploadResolvedPhoto(issue._id)}
+                              type="button"
+                            >
+                              {uploadingPhotoId === issue._id ? "Uploading..." : "Save & Resolve"}
+                            </button>
+                            <button
+                              className="btn-cancel-upload"
+                              style={{ padding: "6px 10px", fontSize: "12px" }}
+                              onClick={() => handleCancelPhotoSelect(issue._id)}
+                              type="button"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <label
+                              className="compact-upload-btn-label"
+                              htmlFor={`card-file-${issue._id}`}
+                              style={{ cursor: "pointer", width: "100%", display: "flex", alignItems: "center", gap: "6px" }}
+                            >
+                              📸 <span>Attach Proof Image to Resolve</span>
+                            </label>
+                            <input
+                              id={`card-file-${issue._id}`}
+                              type="file"
+                              accept="image/*"
+                              style={{ display: "none" }}
+                              onChange={(e) =>
+                                handlePhotoSelect(issue._id, e.target.files[0])
+                              }
+                            />
+                          </>
+                        )}
+                      </div>
+                    )}
+
                     {/* Footer: Status */}
                     <div
                       className="card-controls-footer"
@@ -603,7 +793,13 @@ function DepartmentDashboard() {
                             <option value="Pending">Pending</option>
                             <option value="Verified">Verified</option>
                             <option value="In Progress">In Progress</option>
-                            <option value="Resolved">Resolved</option>
+                            <option
+                              value="Resolved"
+                              disabled={!issue.resolvedPhoto}
+                              title={!issue.resolvedPhoto ? "Upload completed work proof image first" : ""}
+                            >
+                              {issue.resolvedPhoto ? "Resolved" : "Resolved (Proof Required)"}
+                            </option>
                             <option value="Rejected">Rejected</option>
                           </select>
                         )}

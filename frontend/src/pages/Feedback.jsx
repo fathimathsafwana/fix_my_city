@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { useToast } from "../context/useToast";
 import { API_BASE_URL } from "../config";
@@ -7,6 +7,7 @@ import { getAuthHeaders } from "../utils/auth";
 
 function Feedback() {
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryIssueId = searchParams.get("issueId") || "";
 
@@ -72,15 +73,15 @@ function Feedback() {
   const getRatingLabel = (val) => {
     switch (val) {
       case 5:
-        return "⭐⭐⭐⭐⭐ Excellent (5/5)";
+        return "Excellent";
       case 4:
-        return "⭐⭐⭐⭐ Very Good (4/5)";
+        return "Very Good";
       case 3:
-        return "⭐⭐⭐ Good / Average (3/5)";
+        return "Good";
       case 2:
-        return "⭐⭐ Needs Improvement (2/5)";
+        return "Needs Improvement";
       case 1:
-        return "⭐ Poor (1/5)";
+        return "Poor";
       default:
         return "";
     }
@@ -101,8 +102,48 @@ function Feedback() {
 
         <div className="feedback-layout">
           {/* Feedback Submission Form */}
-          <div className="feedback-form-card">
-            <h2>📝 Submit Your Feedback</h2>
+          <div className="feedback-form-card" style={{ position: "relative" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "16px",
+              }}
+            >
+              <h2 style={{ margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+                <span>📝</span> Submit Your Feedback
+              </h2>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/track"))}
+                title="Close feedback"
+                aria-label="Close"
+                style={{
+                  fontSize: "18px",
+                  color: "#94a3b8",
+                  cursor: "pointer",
+                  padding: "6px 10px",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  background: "rgba(255, 255, 255, 0.05)",
+                  lineHeight: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {selectedIssueId && (
+              <div style={{ fontSize: "13px", color: "var(--text-secondary)", marginBottom: "16px" }}>
+                Complaint ID: <code style={{ color: "var(--neon)", padding: "2px 6px", background: "rgba(255, 255, 255, 0.05)", borderRadius: "4px" }}>{selectedIssueId}</code>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit}>
               {/* Ratings */}

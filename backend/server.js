@@ -301,6 +301,12 @@ app.put("/api/issues/:id/status", async (req, res) => {
       });
     }
 
+    if (status === "Resolved" && !existing.resolvedPhoto) {
+      return res.status(400).json({
+        message: "Proof image of completed work is required before marking complaint as Resolved.",
+      });
+    }
+
     existing.status = status;
     await existing.save();
 
@@ -373,6 +379,11 @@ app.put("/api/issues/:id", async (req, res) => {
 
     const updateFields = {};
     if (!isAdmin) {
+      if (issue.status === "Verified" || issue.status === "In Progress" || issue.status === "Assigned") {
+        return res.status(400).json({
+          message: "Verified complaints cannot be edited.",
+        });
+      }
       if (title !== undefined && typeof title === "string" && title.trim()) {
         updateFields.title = title.trim();
       }

@@ -1,6 +1,27 @@
+import { useEffect } from "react";
 import { createPortal } from "react-dom";
 
 export default function LightboxModal({ lightboxImage, onClose }) {
+  useEffect(() => {
+    if (!lightboxImage) return;
+
+    document.body.classList.add("modal-open");
+    document.documentElement.classList.add("modal-open");
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        onClose?.();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.classList.remove("modal-open");
+      document.documentElement.classList.remove("modal-open");
+    };
+  }, [lightboxImage, onClose]);
+
   if (!lightboxImage) return null;
 
   return createPortal(
@@ -17,6 +38,8 @@ export default function LightboxModal({ lightboxImage, onClose }) {
           className="image-lightbox-close-btn"
           onClick={onClose}
           type="button"
+          title="Close photo preview"
+          aria-label="Close"
         >
           ✕
         </button>
@@ -29,4 +52,5 @@ export default function LightboxModal({ lightboxImage, onClose }) {
     document.body
   );
 }
+
 

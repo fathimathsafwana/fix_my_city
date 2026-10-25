@@ -1,7 +1,9 @@
 import { useEffect, useState, useMemo } from "react";
 import { useSearchParams, Link } from "react-router-dom";
+import { createPortal } from "react-dom";
 import Navbar from "../components/Navbar";
 import Pagination from "../components/Pagination";
+import LightboxModal from "../components/admin/modals/LightboxModal";
 import { useToast } from "../context/useToast";
 import { API_BASE_URL } from "../config";
 import { getAuthHeaders, getCurrentUser } from "../utils/auth";
@@ -35,6 +37,39 @@ function TrackComplaint() {
         description: "",
     });
     const [savingEdit, setSavingEdit] = useState(false);
+
+    // Lightbox Modal for high-res photo inspection (Proof / Problem Image)
+    const [lightboxImage, setLightboxImage] = useState(null);
+
+    // Feedback Modal state
+    const [feedbackIssue, setFeedbackIssue] = useState(null);
+    const [feedbackRating, setFeedbackRating] = useState(5);
+    const [hoverRating, setHoverRating] = useState(0);
+    const [feedbackComment, setFeedbackComment] = useState("");
+    const [submittingFeedback, setSubmittingFeedback] = useState(false);
+
+    // Lock background scrolling and handle Escape key for feedback modal
+    useEffect(() => {
+        if (!feedbackIssue) return;
+
+        document.body.classList.add("modal-open");
+        document.documentElement.classList.add("modal-open");
+
+        const handleKeyDown = (e) => {
+            if (e.key === "Escape" && !submittingFeedback) {
+                setFeedbackIssue(null);
+            }
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown);
+            if (!document.querySelector(".modal-overlay, .image-lightbox-overlay")) {
+                document.body.classList.remove("modal-open");
+                document.documentElement.classList.remove("modal-open");
+            }
+        };
+    }, [feedbackIssue, submittingFeedback]);
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -181,6 +216,10 @@ function TrackComplaint() {
             showToast("Resolved complaints cannot be edited.", "warning");
             return;
         }
+        if (issue.status === "Verified" || issue.status === "In Progress" || issue.status === "Assigned") {
+            showToast("Verified complaints cannot be edited.", "warning");
+            return;
+        }
         setEditingIssueId(issue._id);
         setEditFormData({
             title: issue.title || "",
@@ -198,6 +237,11 @@ function TrackComplaint() {
         const target = issues.find((i) => i._id === issueId);
         if (target && target.status === "Resolved") {
             showToast("Resolved complaints cannot be edited.", "warning");
+            setEditingIssueId(null);
+            return;
+        }
+        if (target && (target.status === "Verified" || target.status === "In Progress" || target.status === "Assigned")) {
+            showToast("Verified complaints cannot be edited.", "warning");
             setEditingIssueId(null);
             return;
         }
@@ -248,6 +292,90 @@ function TrackComplaint() {
             return path;
         }
         return `${API_BASE_URL}${path}`;
+    };
+
+    const openFeedbackModal = (issue) => {
+        setFeedbackIssue(issue);
+        setFeedbackRating(issue.feedback?.rating || 5);
+        setHoverRating(0);
+        setFeedbackComment(issue.feedback?.comment || "");
+    };
+
+    const getRatingLabel = (val) => {
+        switch (val) {
+            case 5:
+                return "Excellent";
+            case 4:
+                return "Very Good";
+            case 3:
+                return "Good";
+            case 2:
+                return "Needs Improvement";
+            case 1:
+                return "Poor";
+            default:
+                return "";
+        }
+    };
+
+    const handleSubmitFeedback = async (e) => {
+        e.preventDefault();
+        if (!feedbackIssue) return;
+
+        if (!feedbackRating || feedbackRating < 1 || feedbackRating > 5) {
+            showToast("Please choose a rating between 1 and 5 stars.", "warning");
+            return;
+        }
+
+        if (!feedbackComment.trim()) {
+            showToast("Please write your comments and suggestions.", "warning");
+            return;
+        }
+
+        setSubmittingFeedback(true);
+        try {
+            const headers = {
+                "Content-Type": "application/json",
+                ...getAuthHeaders(),
+            };
+
+            const response = await fetch(`${API_BASE_URL}/api/feedback`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({
+                    issueId: feedbackIssue._id,
+                    rating: feedbackRating,
+                    category: "Resolution Quality",
+                    comment: feedbackComment.trim(),
+                }),
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || "Failed to submit feedback.");
+            }
+
+            const newFeedback = {
+                rating: feedbackRating,
+                comment: feedbackComment.trim(),
+                submittedAt: new Date(),
+            };
+
+            setAllIssues((prev) =>
+                prev.map((i) => (i._id === feedbackIssue._id ? { ...i, feedback: newFeedback } : i))
+            );
+            setIssues((prev) =>
+                prev.map((i) => (i._id === feedbackIssue._id ? { ...i, feedback: newFeedback } : i))
+            );
+
+            showToast("Thank you! Your feedback has been recorded.", "success");
+            setFeedbackIssue(null);
+        } catch (err) {
+            console.error("Error submitting feedback:", err);
+            showToast(err.message || "Cannot submit feedback.", "error");
+        } finally {
+            setSubmittingFeedback(false);
+        }
     };
 
     return (
@@ -302,237 +430,379 @@ function TrackComplaint() {
                 <>
                     <div className="complaints-list">
                         {paginatedIssues.map((issue) => {
-                        const isEditing = editingIssueId === issue._id;
-                        const currentStep = getStepIndex(issue.status);
+                            const isEditing = editingIssueId === issue._id;
+                            const currentStep = getStepIndex(issue.status);
 
-                        return (
-                            <div className="complaint-card-container" key={issue._id}>
-                                {/* Straight Format from Left to Right */}
-                                <div className="complaint-card straight-card">
-                                    {/* Col 1: Photo or Category Icon (Far Left) */}
-                                    <div className="straight-col-photo">
-                                        {issue.photo ? (
-                                            <a
-                                                href={getPhotoUrl(issue.photo)}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                title="Click to view full photo"
-                                            >
-                                                <img
-                                                    src={getPhotoUrl(issue.photo)}
-                                                    alt="Citizen reported problem"
-                                                    className="straight-thumb-img"
-                                                />
-                                                <span className="straight-photo-badge">📷 Problem</span>
-                                            </a>
-                                        ) : (
-                                            <div className="straight-icon-placeholder">
-                                                <span>{getCategoryIcon(issue.category)}</span>
-                                                <span className="straight-icon-category-label">
-                                                    {issue.category || "General"}
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Col 2: Info (Left-Center) */}
-                                    <div className="straight-col-info">
-                                        <div className="straight-title-row">
-                                            <h3 className="straight-title">{issue.title}</h3>
-                                            <span className="straight-id-pill">
-                                                ID: <code>{issue._id}</code>
+                            return (
+                                <div className="complaint-card-container" key={issue._id}>
+                                    {/* Straight Format from Left to Right */}
+                                    <div className="complaint-card straight-card">
+                                        {/* Col 1: Photo or Category Icon (Far Left) */}
+                                        <div className="straight-col-photo">
+                                            {issue.photo ? (
                                                 <button
-                                                    className="btn-copy-id"
-                                                    title="Copy Complaint ID"
-                                                    onClick={() => {
-                                                        navigator.clipboard.writeText(issue._id);
-                                                        showToast("Complaint ID copied!", "success");
-                                                    }}
                                                     type="button"
+                                                    className="straight-photo-trigger-btn"
+                                                    onClick={() =>
+                                                        setLightboxImage({
+                                                            url: getPhotoUrl(issue.photo),
+                                                            title: issue.title || "Citizen Issue",
+                                                            type: "Citizen Problem Photo",
+                                                        })
+                                                    }
+                                                    title="Click to view full photo"
                                                 >
-                                                    📋 Copy
-                                                </button>
-                                            </span>
-                                        </div>
-
-                                        <div className="straight-meta-row">
-                                            <span className="straight-meta-item">
-                                                <strong>📁</strong> {issue.category || "General"}
-                                            </span>
-                                            <span>•</span>
-                                            <span className="straight-meta-item">
-                                                <strong>🏢</strong> {getDepartmentName(issue.department)}
-                                            </span>
-                                            <span>•</span>
-                                            <span className="straight-meta-item">
-                                                <strong>📍</strong> {locations[issue._id] || "Getting location..."}
-                                            </span>
-                                            <span>•</span>
-                                            <span className="straight-meta-item">
-                                                <strong>📅</strong> {new Date(issue.createdAt).toLocaleDateString()}
-                                            </span>
-                                        </div>
-
-                                        {issue.description && (
-                                            <p className="straight-desc-preview" title={issue.description}>
-                                                <strong>Note:</strong> {issue.description}
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    {/* Col 3: Live 5-Step Stepper in straight line from left to right */}
-                                    <div className="straight-col-stepper">
-                                        <div className="straight-stepper-header">
-                                            <span>Live Progress</span>
-                                            <span style={{ color: issue.status === "Rejected" ? "#ef4444" : "var(--neon)" }}>
-                                                Stage: {!issue.status || issue.status === "Submitted" || issue.status === "Assigned" ? "Pending" : issue.status}
-                                            </span>
-                                        </div>
-
-                                        {issue.status === "Rejected" ? (
-                                            <div style={{ color: "#ef4444", fontSize: "13px", padding: "10px 14px", background: "rgba(239, 68, 68, 0.1)", borderRadius: "8px", border: "1px solid rgba(239, 68, 68, 0.3)", display: "flex", alignItems: "center", gap: "8px" }}>
-                                                <span>❌</span> <strong>Grievance Rejected:</strong> This complaint was reviewed and closed as rejected.
-                                            </div>
-                                        ) : (
-                                            <div className="straight-stepper-track">
-                                                <div className="straight-stepper-bar-bg">
-                                                    <div
-                                                        className="straight-stepper-bar-fill"
-                                                        style={{
-                                                            width: `${(currentStep / (TRACKING_STEPS.length - 1)) * 100}%`,
-                                                        }}
-                                                    ></div>
-                                                </div>
-
-                                                {TRACKING_STEPS.map((step, idx) => {
-                                                    const isCompleted = idx < currentStep;
-                                                    const isActive = idx === currentStep;
-
-                                                    return (
-                                                        <div
-                                                            key={step.key}
-                                                            className={`straight-step-node ${
-                                                                isCompleted ? "completed" : ""
-                                                            } ${isActive ? "active" : ""}`}
-                                                            title={`${step.label}: ${step.desc}`}
-                                                        >
-                                                            <div className="straight-step-dot">
-                                                                {isCompleted ? "✓" : step.icon}
-                                                            </div>
-                                                            <span className="straight-step-text">{step.label}</span>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Col 4: Actions (Far Right) */}
-                                    <div className="straight-col-actions">
-                                        <div className="straight-actions-row">
-                                            {issue.status !== "Resolved" ? (
-                                                <button
-                                                    className="straight-btn-edit"
-                                                    onClick={() => (isEditing ? cancelEditing() : startEditing(issue))}
-                                                    type="button"
-                                                >
-                                                    {isEditing ? "✕ Close" : "✏️ Edit"}
+                                                    <img
+                                                        src={getPhotoUrl(issue.photo)}
+                                                        alt="Citizen reported problem"
+                                                        className="straight-thumb-img"
+                                                    />
+                                                    <span className="straight-photo-badge">📷 Problem</span>
                                                 </button>
                                             ) : (
-                                                <Link
-                                                    to={`/feedback?issueId=${issue._id}`}
-                                                    className={`straight-btn-rate ${issue.feedback?.rating ? "has-rated" : ""}`}
-                                                    title="Submit or update feedback for this resolved complaint"
-                                                >
-                                                    ⭐ Feedback
-                                                </Link>
-                                            )}
-
-                                            {issue.resolvedPhoto && (
-                                                <a
-                                                    href={getPhotoUrl(issue.resolvedPhoto)}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="straight-btn-proof"
-                                                    title="View Department Completed Work Proof Photo"
-                                                >
-                                                    ✅ Proof ↗
-                                                </a>
+                                                <div className="straight-icon-placeholder">
+                                                    <span>{getCategoryIcon(issue.category)}</span>
+                                                    <span className="straight-icon-category-label">
+                                                        {issue.category || "General"}
+                                                    </span>
+                                                </div>
                                             )}
                                         </div>
+
+                                        {/* Col 2: Info (Left-Center) */}
+                                        <div className="straight-col-info">
+                                            <div className="straight-title-row">
+                                                <h3 className="straight-title">{issue.title}</h3>
+                                                <span className="straight-id-pill">
+                                                    ID: <code>{issue._id}</code>
+                                                    <button
+                                                        className="btn-copy-id"
+                                                        title="Copy Complaint ID"
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(issue._id);
+                                                            showToast("Complaint ID copied!", "success");
+                                                        }}
+                                                        type="button"
+                                                    >
+                                                        📋 Copy
+                                                    </button>
+                                                </span>
+                                            </div>
+
+                                            <div className="straight-meta-row">
+                                                <span className="straight-meta-item">
+                                                    <strong>📁</strong> {issue.category || "General"}
+                                                </span>
+                                                <span>•</span>
+                                                <span className="straight-meta-item">
+                                                    <strong>🏢</strong> {getDepartmentName(issue.department)}
+                                                </span>
+                                                <span>•</span>
+                                                <span className="straight-meta-item">
+                                                    <strong>📍</strong> {locations[issue._id] || "Getting location..."}
+                                                </span>
+                                                <span>•</span>
+                                                <span className="straight-meta-item">
+                                                    <strong>📅</strong> {new Date(issue.createdAt).toLocaleDateString()}
+                                                </span>
+                                            </div>
+
+                                            {issue.description && (
+                                                <p className="straight-desc-preview" title={issue.description}>
+                                                    <strong>Note:</strong> {issue.description}
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        {/* Col 3: Live 5-Step Stepper in straight line from left to right */}
+                                        <div className="straight-col-stepper">
+                                            <div className="straight-stepper-header">
+                                                <span>Live Progress</span>
+                                                <span style={{ color: issue.status === "Rejected" ? "#ef4444" : "var(--neon)" }}>
+                                                    Stage: {!issue.status || issue.status === "Submitted" || issue.status === "Assigned" ? "Pending" : issue.status}
+                                                </span>
+                                            </div>
+
+                                            {issue.status === "Rejected" ? (
+                                                <div style={{ color: "#ef4444", fontSize: "13px", padding: "10px 14px", background: "rgba(239, 68, 68, 0.1)", borderRadius: "8px", border: "1px solid rgba(239, 68, 68, 0.3)", display: "flex", alignItems: "center", gap: "8px" }}>
+                                                    <span>❌</span> <strong>Grievance Rejected:</strong> This complaint was reviewed and closed as rejected.
+                                                </div>
+                                            ) : (
+                                                <div className="straight-stepper-track">
+                                                    <div className="straight-stepper-bar-bg">
+                                                        <div
+                                                            className="straight-stepper-bar-fill"
+                                                            style={{
+                                                                width: `${(currentStep / (TRACKING_STEPS.length - 1)) * 100}%`,
+                                                            }}
+                                                        ></div>
+                                                    </div>
+
+                                                    {TRACKING_STEPS.map((step, idx) => {
+                                                        const isCompleted = idx < currentStep;
+                                                        const isActive = idx === currentStep;
+
+                                                        return (
+                                                            <div
+                                                                key={step.key}
+                                                                className={`straight-step-node ${isCompleted ? "completed" : ""
+                                                                    } ${isActive ? "active" : ""}`}
+                                                                title={`${step.label}: ${step.desc}`}
+                                                            >
+                                                                <div className="straight-step-dot">
+                                                                    {isCompleted ? "✓" : step.icon}
+                                                                </div>
+                                                                <span className="straight-step-text">{step.label}</span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Col 4: Actions (Far Right) */}
+                                        <div className="straight-col-actions">
+                                            <div className="straight-actions-row">
+                                                {issue.status === "Resolved" ? (
+                                                    <button
+                                                        type="button"
+                                                        className={`straight-btn-rate ${issue.feedback?.rating ? "has-rated" : ""}`}
+                                                        title={
+                                                            issue.feedback?.rating
+                                                                ? "View or update feedback for this resolved complaint"
+                                                                : "Submit feedback for this resolved complaint"
+                                                        }
+                                                        onClick={() => openFeedbackModal(issue)}
+                                                    >
+                                                        {issue.feedback?.rating ? `⭐ Feedback (${issue.feedback.rating}★)` : "⭐ Feedback"}
+                                                    </button>
+                                                ) : issue.status === "Verified" || issue.status === "In Progress" || issue.status === "Assigned" || issue.status === "Rejected" ? null : (
+                                                    <button
+                                                        className="straight-btn-edit"
+                                                        onClick={() => (isEditing ? cancelEditing() : startEditing(issue))}
+                                                        type="button"
+                                                    >
+                                                        {isEditing ? "✕ Close" : "✏️ Edit"}
+                                                    </button>
+                                                )}
+
+                                                {issue.resolvedPhoto && (
+                                                    <button
+                                                        type="button"
+                                                        className="straight-btn-proof"
+                                                        title="View Department Completed Work Proof Photo"
+                                                        onClick={() =>
+                                                            setLightboxImage({
+                                                                url: getPhotoUrl(issue.resolvedPhoto),
+                                                                title: issue.title || "Department Work Proof",
+                                                                type: "Completed Work Proof",
+                                                            })
+                                                        }
+                                                    >
+                                                        ✅ Proof
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Inline Edit Drawer (only when user clicks Edit) */}
+                                    {isEditing && issue.status !== "Resolved" && issue.status !== "Verified" && issue.status !== "In Progress" && issue.status !== "Assigned" && (
+                                        <div className="complaint-edit-form" style={{ marginTop: "10px" }}>
+                                            <h4>✏️ Correct Complaint Details</h4>
+                                            <div className="edit-form-field">
+                                                <label>Issue Title</label>
+                                                <input
+                                                    type="text"
+                                                    value={editFormData.title}
+                                                    onChange={(e) =>
+                                                        setEditFormData((prev) => ({
+                                                            ...prev,
+                                                            title: e.target.value,
+                                                        }))
+                                                    }
+                                                    placeholder="Example: Broken street light"
+                                                />
+                                            </div>
+
+                                            <div className="edit-form-field">
+                                                <label>Description</label>
+                                                <textarea
+                                                    rows={3}
+                                                    value={editFormData.description}
+                                                    onChange={(e) =>
+                                                        setEditFormData((prev) => ({
+                                                            ...prev,
+                                                            description: e.target.value,
+                                                        }))
+                                                    }
+                                                    placeholder="Describe the civic problem in detail..."
+                                                />
+                                            </div>
+
+                                            <div className="edit-form-buttons">
+                                                <button
+                                                    className="btn-save-changes"
+                                                    onClick={() => saveComplaintCorrection(issue._id)}
+                                                    disabled={savingEdit}
+                                                    type="button"
+                                                >
+                                                    {savingEdit ? "Saving..." : "💾 Save Changes"}
+                                                </button>
+                                                <button
+                                                    className="btn-cancel-edit"
+                                                    onClick={cancelEditing}
+                                                    disabled={savingEdit}
+                                                    type="button"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    <Pagination
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        totalItems={issues.length}
+                        pageSize={pageSize}
+                        onPageChange={setCurrentPage}
+                        onPageSizeChange={setPageSize}
+                        pageSizeOptions={[5, 10, 20]}
+                    />
+                </>
+            )}
+
+            {/* Proof & Problem Image Lightbox Modal with Close Icon */}
+            <LightboxModal
+                lightboxImage={lightboxImage}
+                onClose={() => setLightboxImage(null)}
+            />
+
+            {/* Citizen Feedback Modal with Close Icon */}
+            {feedbackIssue &&
+                createPortal(
+                    <div
+                        className="modal-overlay"
+                        style={{ zIndex: 99999999 }}
+                        onClick={() => {
+                            if (!submittingFeedback) setFeedbackIssue(null);
+                        }}
+                    >
+                        <div
+                            className="modal-dialog"
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ maxWidth: "520px", maxHeight: "90vh", overflowY: "auto" }}
+                        >
+                            <div className="modal-header">
+                                <h2 className="modal-title" style={{ margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+                                    {feedbackIssue.feedback?.rating ? "Update Feedback & Rating" : "Submit Feedback & Rating"}
+                                </h2>
+                                <button
+                                    type="button"
+                                    className="modal-close-btn"
+                                    onClick={() => setFeedbackIssue(null)}
+                                    title="Close feedback"
+                                    aria-label="Close"
+                                    disabled={submittingFeedback}
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            <div style={{ fontSize: "13px", color: "var(--text-secondary)", marginTop: "6px" }}>
+                                Complaint: <strong style={{ color: "var(--text-primary)" }}>{feedbackIssue.title}</strong>
+                                <span style={{ marginLeft: "8px", fontFamily: "var(--font-mono, monospace)", fontSize: "11px", color: "var(--text-muted)" }}>
+                                    (ID: {feedbackIssue._id})
+                                </span>
+                            </div>
+
+                            <form onSubmit={handleSubmitFeedback} className="modal-form" style={{ marginTop: "18px" }}>
+                                <div className="modal-form-group">
+                                    <label style={{ display: "block", marginBottom: "8px", fontWeight: 600 }}>
+                                        Ratings *
+                                    </label>
+                                    <div className="feedback-star-picker" style={{ justifyContent: "center" }}>
+                                        {[1, 2, 3, 4, 5].map((star) => (
+                                            <button
+                                                key={star}
+                                                type="button"
+                                                className={`star-select-btn ${star <= (hoverRating || feedbackRating) ? "active" : ""
+                                                    }`}
+                                                onMouseEnter={() => setHoverRating(star)}
+                                                onMouseLeave={() => setHoverRating(0)}
+                                                onClick={() => setFeedbackRating(star)}
+                                                aria-label={`${star} Star`}
+                                            >
+                                                ★
+                                            </button>
+                                        ))}
+                                        <span className="star-feedback-label">
+                                            {getRatingLabel(hoverRating || feedbackRating)}
+                                        </span>
                                     </div>
                                 </div>
 
-                                {/* Inline Edit Drawer (only when user clicks Edit) */}
-                                {isEditing && (
-                                    <div className="complaint-edit-form" style={{ marginTop: "10px" }}>
-                                        <h4>✏️ Correct Complaint Details</h4>
-                                        <div className="edit-form-field">
-                                            <label>Issue Title</label>
-                                            <input
-                                                type="text"
-                                                value={editFormData.title}
-                                                onChange={(e) =>
-                                                    setEditFormData((prev) => ({
-                                                        ...prev,
-                                                        title: e.target.value,
-                                                    }))
-                                                }
-                                                placeholder="Example: Broken street light"
-                                            />
-                                        </div>
+                                <div className="modal-form-group">
+                                    <label style={{ display: "block", marginBottom: "6px", fontWeight: 600 }}>
+                                        Comments and Suggestions *
+                                    </label>
+                                    <textarea
+                                        rows={4}
+                                        placeholder="Share your comments, experience, or suggestions to improve..."
+                                        value={feedbackComment}
+                                        onChange={(e) => setFeedbackComment(e.target.value)}
+                                        required
+                                        style={{
+                                            width: "100%",
+                                            background: "#0d1117",
+                                            border: "1px solid rgba(255, 255, 255, 0.16)",
+                                            borderRadius: "8px",
+                                            padding: "10px 12px",
+                                            color: "#f1f5f9",
+                                            fontSize: "13.5px",
+                                            fontFamily: "inherit",
+                                            resize: "vertical",
+                                            boxSizing: "border-box",
+                                        }}
+                                    />
+                                </div>
 
-                                        <div className="edit-form-field">
-                                            <label>Description</label>
-                                            <textarea
-                                                rows={3}
-                                                value={editFormData.description}
-                                                onChange={(e) =>
-                                                    setEditFormData((prev) => ({
-                                                        ...prev,
-                                                        description: e.target.value,
-                                                    }))
-                                                }
-                                                placeholder="Describe the civic problem in detail..."
-                                            />
-                                        </div>
-
-                                        <div className="edit-form-buttons">
-                                            <button
-                                                className="btn-save-changes"
-                                                onClick={() => saveComplaintCorrection(issue._id)}
-                                                disabled={savingEdit}
-                                                type="button"
-                                            >
-                                                {savingEdit ? "Saving..." : "💾 Save Changes"}
-                                            </button>
-                                            <button
-                                                className="btn-cancel-edit"
-                                                onClick={cancelEditing}
-                                                disabled={savingEdit}
-                                                type="button"
-                                            >
-                                                Cancel
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-
-                <Pagination
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    totalItems={issues.length}
-                    pageSize={pageSize}
-                    onPageChange={setCurrentPage}
-                    onPageSizeChange={setPageSize}
-                    pageSizeOptions={[5, 10, 20]}
-                />
-            </>
-            )}
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        justifyContent: "flex-end",
+                                        gap: "10px",
+                                        marginTop: "16px",
+                                        paddingTop: "14px",
+                                        borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+                                    }}
+                                >
+                                    <button
+                                        type="button"
+                                        className="btn-modal-cancel"
+                                        onClick={() => setFeedbackIssue(null)}
+                                        disabled={submittingFeedback}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="btn-modal-submit"
+                                        disabled={submittingFeedback}
+                                    >
+                                        {submittingFeedback ? "Submitting..." : "⭐ Submit Feedback"}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>,
+                    document.body
+                )}
         </div>
     );
 }
