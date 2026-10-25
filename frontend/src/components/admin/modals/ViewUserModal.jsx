@@ -40,22 +40,17 @@ export default function ViewUserModal({
                 Account Status
               </label>
               <div>
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "5px",
-                    padding: "3px 10px",
-                    borderRadius: "999px",
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    background: user.isBlocked ? "rgba(239, 68, 68, 0.15)" : "rgba(34, 197, 94, 0.15)",
-                    color: user.isBlocked ? "#f87171" : "#4ade80",
-                    border: `1px solid ${user.isBlocked ? "rgba(239, 68, 68, 0.3)" : "rgba(34, 197, 94, 0.3)"}`,
-                  }}
+                <button
+                  type="button"
+                  className={`pro-status-badge ${
+                    user.isBlocked ? "status-blocked" : "status-active"
+                  }`}
+                  onClick={() => onToggleBlock && onToggleBlock(user)}
+                  title={user.isBlocked ? "Click to Unblock Citizen" : "Click to Block Citizen"}
                 >
-                  {user.isBlocked ? "🔴 Blocked" : "🟢 Active"}
-                </span>
+                  <span className="status-dot"></span>
+                  {user.isBlocked ? "Blocked" : "Active"}
+                </button>
               </div>
             </div>
           </div>
@@ -66,7 +61,6 @@ export default function ViewUserModal({
                 Assigned Municipal Department
               </label>
               <div style={{ fontSize: "13.5px", color: "#a855f7", fontWeight: 600 }}>
-                🏢{" "}
                 {typeof user.department === "object" && user.department !== null
                   ? user.department.name
                   : departments.find((d) => d._id === user.department)?.name || "Unassigned"}

@@ -1,5 +1,3 @@
-import { getDeptIcon } from "../../../utils/constants";
-
 export function CreateDeptModal({
   isOpen,
   newDeptData,
@@ -154,16 +152,13 @@ export function ViewDeptModal({
         style={{ maxWidth: "560px", maxHeight: "90vh", overflowY: "auto" }}
       >
         <div className="modal-header">
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <span style={{ fontSize: "24px" }}>{getDeptIcon(viewingDept.name)}</span>
-            <div>
-              <h2 className="modal-title" style={{ margin: 0 }}>
-                {viewingDept.name}
-              </h2>
-              <span style={{ fontSize: "11px", color: "#94a3b8" }}>
-                ID: #{viewingDept._id}
-              </span>
-            </div>
+          <div>
+            <h2 className="modal-title" style={{ margin: 0 }}>
+              {viewingDept.name}
+            </h2>
+            <span style={{ fontSize: "11px", color: "#94a3b8" }}>
+              ID: #{viewingDept._id}
+            </span>
           </div>
         </div>
 
@@ -183,7 +178,7 @@ export function ViewDeptModal({
                 Official Login Email
               </label>
               <div style={{ fontSize: "14px", color: "#38bdf8", fontWeight: 600 }}>
-                📧 {viewingDept.email}
+                {viewingDept.email}
               </div>
             </div>
           )}

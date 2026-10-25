@@ -217,9 +217,21 @@ app.post("/api/issues", upload.single("photo"), async (req, res) => {
       photoUrl = await uploadToCloudinary(req.file.buffer, "fixmycity/citizen_proofs");
     }
 
+    let finalCategory = category && category.trim() ? category.trim() : "";
+    if (!finalCategory || finalCategory === "General") {
+      const t = (title || "").toLowerCase();
+      if (t.includes("light") || t.includes("lamp") || t.includes("electric")) finalCategory = "Street Light";
+      else if (t.includes("pothole") || t.includes("road") || t.includes("tar")) finalCategory = "Road / Pothole";
+      else if (t.includes("garbage") || t.includes("waste") || t.includes("trash")) finalCategory = "Garbage / Waste";
+      else if (t.includes("water") || t.includes("leak") || t.includes("pipe")) finalCategory = "Water Supply";
+      else if (t.includes("drain") || t.includes("sewer") || t.includes("flood")) finalCategory = "Drainage";
+      else if (t.includes("safety") || t.includes("danger")) finalCategory = "Public Safety";
+      else finalCategory = "General";
+    }
+
     const issueData = {
       title,
-      category: category || "General",
+      category: finalCategory,
       description,
       latitude: latitude ? Number(latitude) : 0,
       longitude: longitude ? Number(longitude) : 0,

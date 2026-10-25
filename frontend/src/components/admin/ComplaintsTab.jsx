@@ -1,5 +1,5 @@
 import Pagination from "../Pagination";
-import { getDeptIcon, getStatusClass, getCategoryIcon } from "../../utils/constants";
+import { getStatusClass, getCategoryIcon, getIssueCategory } from "../../utils/constants";
 
 export default function ComplaintsTab({
   issues = [],
@@ -55,7 +55,7 @@ export default function ComplaintsTab({
 
           <div className="toolbar-control-group">
             <label className="toolbar-control-label" htmlFor="status-select-filter">
-              <span className="toolbar-icon">⚡</span> Status:
+              Status:
             </label>
             <select
               id="status-select-filter"
@@ -73,7 +73,7 @@ export default function ComplaintsTab({
 
           <div className="toolbar-control-group">
             <label className="toolbar-control-label" htmlFor="dept-select-filter">
-              <span className="toolbar-icon">🏢</span> Department:
+              Department:
             </label>
             <select
               id="dept-select-filter"
@@ -91,7 +91,7 @@ export default function ComplaintsTab({
                   const count = deptIssueCounts[String(dept._id)] || 0;
                   return (
                     <option key={dept._id} value={String(dept._id)}>
-                      {getDeptIcon(dept.name)} {dept.name} ({count})
+                      {dept.name} ({count})
                     </option>
                   );
                 })}
@@ -134,7 +134,6 @@ export default function ComplaintsTab({
       {/* Empty State */}
       {!loading && filteredIssues.length === 0 && (
         <div className="no-issues-placeholder">
-          <div className="empty-state-icon">📂</div>
           <h3>No Complaints Found</h3>
           <p>
             {issues.length === 0
@@ -154,9 +153,9 @@ export default function ComplaintsTab({
                   <th className="col-id">Complaint ID</th>
                   <th className="col-info">Title</th>
                   <th className="col-status">Status</th>
-                  <th className="col-date">Reported</th>
+                  <th className="col-date" style={{ textAlign: "center" }}>Reported</th>
                   <th className="col-dept">Department</th>
-                  <th className="col-action">Quick Actions</th>
+                  <th className="col-action" style={{ textAlign: "center" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -190,7 +189,7 @@ export default function ComplaintsTab({
                         </span>
                       </td>
 
-                      <td className="col-date">
+                      <td className="col-date" style={{ textAlign: "center" }}>
                         {issue.createdAt
                           ? new Date(issue.createdAt).toLocaleDateString()
                           : "Recent"}
@@ -199,10 +198,10 @@ export default function ComplaintsTab({
                       <td className="col-dept">
                         {deptObj ? (
                           <span className="dept-tag">
-                            {getDeptIcon(deptObj.name)} {deptObj.name}
+                            {deptObj.name}
                           </span>
                         ) : (
-                          <span className="unassigned-tag">⚠️ Unassigned</span>
+                          <span className="unassigned-tag">Unassigned</span>
                         )}
                       </td>
 
@@ -304,16 +303,16 @@ export default function ComplaintsTab({
 
                 <div className="card-meta-chips-row">
                   <span className="category-pill">
-                    <span className="category-icon">{getCategoryIcon(issue.category)}</span>
-                    {issue.category || "General"}
+                    <span className="category-icon">{getCategoryIcon(getIssueCategory(issue, departments))}</span>
+                    {getIssueCategory(issue, departments)}
                   </span>
                   <span className="meta-chip">👤 {citizenName}</span>
                   {deptObj ? (
                     <span className="meta-chip">
-                      {getDeptIcon(deptObj.name)} {deptObj.name}
+                      {deptObj.name}
                     </span>
                   ) : (
-                    <span className="meta-chip unassigned">⚠️ Unassigned</span>
+                    <span className="meta-chip unassigned">Unassigned</span>
                   )}
                 </div>
 

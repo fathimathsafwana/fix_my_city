@@ -107,22 +107,12 @@ export default function UsersTab({
       {/* Empty State */}
       {!loadingUsers && filteredUsers.length === 0 && (
         <div className="no-issues-placeholder">
-          <div className="empty-state-icon">👥</div>
           <h3>No Citizens Found</h3>
           <p>
             {users.length === 0
               ? "No citizens have registered on the portal yet."
               : "No citizens match your search query."}
           </p>
-          {userSearchQuery && (
-            <button
-              className="btn-clear-search"
-              onClick={() => setUserSearchQuery("")}
-              type="button"
-            >
-              Clear Search
-            </button>
-          )}
         </div>
       )}
 
@@ -136,8 +126,8 @@ export default function UsersTab({
                   <th className="col-id">User ID</th>
                   <th className="col-u-user">Citizen Details</th>
                   <th className="col-u-dept">Status</th>
-                  <th className="col-u-date">Registered</th>
-                  <th className="col-u-act">Actions</th>
+                  <th className="col-u-date" style={{ textAlign: "center" }}>Registered</th>
+                  <th className="col-u-act" style={{ textAlign: "center" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -155,16 +145,20 @@ export default function UsersTab({
                     </td>
 
                     <td className="col-u-dept">
-                      <span
-                        className={`status-pill ${
-                          u.isBlocked ? "status-pill-blocked" : "status-pill-active"
+                      <button
+                        type="button"
+                        className={`pro-status-badge ${
+                          u.isBlocked ? "status-blocked" : "status-active"
                         }`}
+                        onClick={() => onToggleBlockUser(u)}
+                        title={u.isBlocked ? "Click to Unblock Citizen" : "Click to Block Citizen"}
                       >
-                        {u.isBlocked ? "🔴 Blocked" : "🟢 Active"}
-                      </span>
+                        <span className="status-dot"></span>
+                        {u.isBlocked ? "Blocked" : "Active"}
+                      </button>
                     </td>
 
-                    <td className="col-u-date">
+                    <td className="col-u-date" style={{ textAlign: "center" }}>
                       {u.createdAt
                         ? new Date(u.createdAt).toLocaleDateString()
                         : "Active"}
@@ -223,13 +217,17 @@ export default function UsersTab({
                 }}
               >
                 <span className="id-badge">#{u._id.slice(-6)}</span>
-                <span
-                  className={`status-pill ${
-                    u.isBlocked ? "status-pill-blocked" : "status-pill-active"
+                <button
+                  type="button"
+                  className={`pro-status-badge ${
+                    u.isBlocked ? "status-blocked" : "status-active"
                   }`}
+                  onClick={() => onToggleBlockUser(u)}
+                  title={u.isBlocked ? "Click to Unblock Citizen" : "Click to Block Citizen"}
                 >
-                  {u.isBlocked ? "🔴 Blocked" : "🟢 Active"}
-                </span>
+                  <span className="status-dot"></span>
+                  {u.isBlocked ? "Blocked" : "Active"}
+                </button>
               </div>
 
               <div className="user-card-header">

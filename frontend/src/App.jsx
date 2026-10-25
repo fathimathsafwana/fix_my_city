@@ -131,7 +131,7 @@ function Home() {
             <div className="step-number">2</div>
             <h3>2. Report with GPS</h3>
             <p>
-              Submit an issue with description, category, photo proof, and auto-detected GPS coordinates.
+              Submit an issue with description, photo proof, and auto-detected GPS coordinates.
             </p>
           </div>
 
@@ -139,7 +139,7 @@ function Home() {
             <div className="step-number">3</div>
             <h3>3. Admin Assigns</h3>
             <p>
-              Admin verify the complaint and dispatch it to the responsible municipal department.
+              Admin verify the complaint and dispatch it to the responsible department.
             </p>
           </div>
 
@@ -147,7 +147,7 @@ function Home() {
             <div className="step-number">4</div>
             <h3>4. Track Resolution</h3>
             <p>
-              Department resolves the problem and citizens can track the status live until closed.
+             Citizens can report issues and track their status live until closed.
             </p>
           </div>
         </div>

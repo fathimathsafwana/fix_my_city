@@ -118,7 +118,7 @@ function Navbar() {
                     isActive ? "nav-link active" : "nav-link"
                   }
                 >
-                  Department Dashboard
+                  Dashboard
                 </NavLink>
               </>
             )}

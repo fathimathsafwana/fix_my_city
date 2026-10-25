@@ -1,5 +1,4 @@
 import Pagination from "../Pagination";
-import { getDeptIcon } from "../../utils/constants";
 
 export default function DepartmentsTab({
   departments = [],
@@ -79,7 +78,6 @@ export default function DepartmentsTab({
       {/* Empty State */}
       {filteredDepartments.length === 0 && (
         <div className="no-issues-placeholder">
-          <div className="empty-state-icon">🏢</div>
           <h3>No Departments Found</h3>
           <p>
             {departments.length === 0
@@ -99,11 +97,11 @@ export default function DepartmentsTab({
                   <th className="col-id">ID</th>
                   <th className="col-info">Department Name</th>
                   <th className="col-dept">Email</th>
-                  <th className="col-date">Created Date</th>
+                  <th className="col-date" style={{ textAlign: "center" }}>Created Date</th>
                   <th className="col-status" style={{ textAlign: "center" }}>
                     Assigned
                   </th>
-                  <th className="col-action">Actions</th>
+                  <th className="col-action" style={{ textAlign: "center" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -122,8 +120,7 @@ export default function DepartmentsTab({
                       </td>
 
                       <td className="col-info">
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                          <span style={{ fontSize: "20px" }}>{getDeptIcon(dept.name)}</span>
+                        <div style={{ display: "flex", alignItems: "center" }}>
                           <span className="table-title-main" title={dept.name}>
                             {dept.name}
                           </span>
@@ -133,14 +130,14 @@ export default function DepartmentsTab({
                       <td className="col-dept">
                         {dept.email ? (
                           <span style={{ fontSize: "12.5px", color: "#38bdf8", fontWeight: 500 }}>
-                            📧 {dept.email}
+                            {dept.email}
                           </span>
                         ) : (
                           <span style={{ fontSize: "12px", color: "#64748b" }}>Not configured</span>
                         )}
                       </td>
 
-                      <td className="col-date">
+                      <td className="col-date" style={{ textAlign: "center" }}>
                         {dept.createdAt
                           ? new Date(dept.createdAt).toLocaleDateString()
                           : "Active"}
@@ -223,7 +220,7 @@ export default function DepartmentsTab({
                       borderColor: "rgba(168, 85, 247, 0.3)",
                     }}
                   >
-                    <span>{getDeptIcon(dept.name)}</span> Department
+                    Department
                   </span>
                 </div>
 
@@ -237,10 +234,10 @@ export default function DepartmentsTab({
 
                 <div className="card-meta-chips-row">
                   {dept.email && (
-                    <span className="meta-chip">📧 {dept.email}</span>
+                    <span className="meta-chip">{dept.email}</span>
                   )}
                   <span className="meta-chip">
-                    📋 {assignedCount} Complaints
+                    {assignedCount} Complaints
                   </span>
                 </div>
 

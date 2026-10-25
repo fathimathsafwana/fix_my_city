@@ -493,7 +493,7 @@ function DepartmentDashboard() {
 
             <div className="toolbar-control-group">
               <label className="toolbar-control-label" htmlFor="status-select-filter">
-                <span className="toolbar-icon">⚡</span> Status:
+                Status:
               </label>
               <select
                 id="status-select-filter"
@@ -540,7 +540,7 @@ function DepartmentDashboard() {
                   marginTop: "8px",
                 }}
               >
-                💡 Tip: Admins can assign newly reported issues to departments from the Admin Dashboard.
+                💡 Tip: Admins can assign newly reported issues to departments.
               </p>
             </div>
           )}
@@ -558,19 +558,11 @@ function DepartmentDashboard() {
                     }`}
                     key={issue._id}
                   >
-                    {/* Top Row: ID and Actions */}
-                    <div
-                      className="card-top-bar"
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: "12px",
-                      }}
-                    >
+                    {/* Top Row: ID Badge & Quick Actions */}
+                    <div className="dept-card-top-bar">
                       <span
-                        className="id-chip"
-                        title="Click to copy ID"
+                        className="dept-card-id"
+                        title="Click to copy Complaint ID"
                         onClick={() => {
                           navigator.clipboard.writeText(issue._id);
                           showToast("Complaint ID copied!");
@@ -579,9 +571,9 @@ function DepartmentDashboard() {
                         #{issue._id ? issue._id.slice(-6) : "ID"}
                       </span>
 
-                      <div className="table-action-icons">
+                      <div className="dept-card-actions">
                         <button
-                          className="btn-action-icon btn-view-icon"
+                          className="dept-card-btn"
                           onClick={() => setViewingIssue(issue)}
                           title="Inspect Complaint Details"
                           type="button"
@@ -590,7 +582,7 @@ function DepartmentDashboard() {
                         </button>
                         {issue.status !== "Resolved" && !issue.resolvedPhoto ? (
                           <button
-                            className="btn-action-icon btn-delete-icon"
+                            className="dept-card-btn delete"
                             onClick={() => handleDeleteIssue(issue._id, issue.title)}
                             title="Delete Complaint"
                             type="button"
@@ -599,11 +591,10 @@ function DepartmentDashboard() {
                           </button>
                         ) : (
                           <button
-                            className="btn-action-icon btn-delete-icon"
+                            className="dept-card-btn delete"
                             disabled
                             title="Resolved complaints cannot be deleted"
                             type="button"
-                            style={{ opacity: 0.35, cursor: "not-allowed" }}
                           >
                             🗑️
                           </button>
@@ -611,22 +602,18 @@ function DepartmentDashboard() {
                       </div>
                     </div>
 
-                    {/* Title & Date */}
-                    <div className="card-content-area" style={{ margin: "0 0 14px 0" }}>
-                      <h2
-                        className="card-title"
-                        style={{ fontSize: "16px", marginBottom: "8px" }}
-                        title={issue.title}
-                      >
+                    {/* Title & Meta Details */}
+                    <div className="dept-card-header">
+                      <h2 className="dept-card-title" title={issue.title}>
                         {issue.title}
                       </h2>
-                      <div className="card-meta-chips-row">
-                        <span className="meta-chip">
+                      <div className="dept-card-meta-row">
+                        <span className="dept-meta-pill">
                           👤 {typeof issue.user === "object" && issue.user !== null
                             ? issue.user.name || "Citizen"
                             : users.find((u) => u._id === issue.user)?.name || issue.userName || "Citizen"}
                         </span>
-                        <span className="meta-chip">
+                        <span className="dept-meta-pill">
                           📅 {issue.createdAt
                             ? new Date(issue.createdAt).toLocaleDateString(undefined, {
                                 month: "short",
@@ -642,10 +629,11 @@ function DepartmentDashboard() {
 
                     {/* Photos Strip (Original Problem Photo & Completed Work Photo side-by-side) */}
                     {(issue.photo || issue.resolvedPhoto) && (
-                      <div className="card-photos-strip">
+                      <div className="dept-card-photos">
                         {issue.photo && (
                           <div
-                            className="photo-strip-item"
+                            className="dept-photo-frame"
+                            style={{ height: issue.resolvedPhoto ? "115px" : "140px" }}
                             onClick={() =>
                               setLightboxImage({
                                 url: getPhotoUrl(issue.photo, API_BASE_URL),
@@ -653,20 +641,21 @@ function DepartmentDashboard() {
                                 type: "Reported Problem Photo",
                               })
                             }
-                            title="Click to zoom Problem Photo"
+                            title="Click to view Problem Photo"
                           >
                             <img
                               src={getPhotoUrl(issue.photo, API_BASE_URL)}
                               alt="Reported problem"
                               loading="lazy"
+                              style={{ height: issue.resolvedPhoto ? "115px" : "140px" }}
                             />
-                            <span className="photo-strip-tag">Problem</span>
-                            <span className="photo-strip-zoom-hint">🔍 Expand</span>
+                            <span className="dept-photo-tag problem">📷 Problem</span>
                           </div>
                         )}
                         {issue.resolvedPhoto && (
                           <div
-                            className="photo-strip-item"
+                            className="dept-photo-frame"
+                            style={{ height: issue.photo ? "115px" : "140px", borderColor: "rgba(16, 185, 129, 0.4)" }}
                             onClick={() =>
                               setLightboxImage({
                                 url: getPhotoUrl(issue.resolvedPhoto, API_BASE_URL),
@@ -674,16 +663,15 @@ function DepartmentDashboard() {
                                 type: "Completed Work Proof",
                               })
                             }
-                            style={{ borderColor: "#10b981" }}
-                            title="Click to zoom Resolved Proof"
+                            title="Click to view Resolved Proof"
                           >
                             <img
                               src={getPhotoUrl(issue.resolvedPhoto, API_BASE_URL)}
                               alt="Completed work proof"
                               loading="lazy"
+                              style={{ height: issue.photo ? "115px" : "140px" }}
                             />
-                            <span className="photo-strip-tag resolved">✅ Resolved</span>
-                            <span className="photo-strip-zoom-hint">🔍 Expand</span>
+                            <span className="dept-photo-tag resolved">✅ Resolved</span>
                           </div>
                         )}
                       </div>
@@ -691,17 +679,16 @@ function DepartmentDashboard() {
 
                     {/* Compact Upload Completed Work Photo Section */}
                     {issue.status !== "Resolved" && !issue.resolvedPhoto && (
-                      <div className="compact-upload-box" style={{ margin: "10px 0" }}>
+                      <div className="dept-upload-box">
                         {photoPreviews[issue._id] ? (
-                          <div style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%" }}>
+                          <div className="dept-upload-preview-row">
                             <img
                               src={photoPreviews[issue._id]}
                               alt="Preview"
-                              style={{ width: "40px", height: "40px", borderRadius: "6px", objectFit: "cover" }}
+                              className="dept-preview-thumb"
                             />
                             <button
-                              className="btn-upload-resolved"
-                              style={{ padding: "6px 12px", fontSize: "12px" }}
+                              className="dept-btn-save-resolve"
                               disabled={uploadingPhotoId === issue._id}
                               onClick={() => handleUploadResolvedPhoto(issue._id)}
                               type="button"
@@ -709,8 +696,7 @@ function DepartmentDashboard() {
                               {uploadingPhotoId === issue._id ? "Uploading..." : "Save & Resolve"}
                             </button>
                             <button
-                              className="btn-cancel-upload"
-                              style={{ padding: "6px 10px", fontSize: "12px" }}
+                              className="dept-btn-cancel-upload"
                               onClick={() => handleCancelPhotoSelect(issue._id)}
                               type="button"
                             >
@@ -720,9 +706,8 @@ function DepartmentDashboard() {
                         ) : (
                           <>
                             <label
-                              className="compact-upload-btn-label"
+                              className="dept-upload-label"
                               htmlFor={`card-file-${issue._id}`}
-                              style={{ cursor: "pointer", width: "100%", display: "flex", alignItems: "center", gap: "6px" }}
                             >
                               📸 <span>Attach Proof Image to Resolve</span>
                             </label>
@@ -741,69 +726,49 @@ function DepartmentDashboard() {
                     )}
 
                     {/* Footer: Status */}
-                    <div
-                      className="card-controls-footer"
-                      style={{
-                        marginTop: "auto",
-                        paddingTop: "14px",
-                        borderTop: "1px solid var(--border)",
-                      }}
-                    >
-                      <div className="control-group">
-                        {issue.status === "Resolved" || !!issue.resolvedPhoto ? (
-                          <div
-                            style={{
-                              padding: "8px 12px",
-                              fontSize: "12px",
-                              fontWeight: 700,
-                              color: "#10b981",
-                              background: "rgba(16, 185, 129, 0.1)",
-                              border: "1px solid rgba(16, 185, 129, 0.3)",
-                              borderRadius: "8px",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                            }}
+                    <div className="dept-card-footer">
+                      {issue.status === "Resolved" || !!issue.resolvedPhoto ? (
+                        <div className="dept-resolved-locked">
+                          <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            ✅ Resolved
+                          </span>
+                          <span style={{ fontSize: "11px", opacity: 0.85, fontWeight: 600 }}>
+                            🔒 Closed
+                          </span>
+                        </div>
+                      ) : (
+                        <select
+                          className={`dept-status-dropdown ${getStatusBadgeClass(
+                            issue.status,
+                            !!issue.resolvedPhoto
+                          )}`}
+                          value={
+                            issue.status === "In Progress"
+                              ? "In Progress"
+                              : issue.status === "Verified"
+                              ? "Verified"
+                              : issue.status === "Rejected"
+                              ? "Rejected"
+                              : "Pending"
+                          }
+                          onChange={(e) =>
+                            handleStatusChange(issue._id, e.target.value)
+                          }
+                          disabled={updatingId === issue._id}
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="Verified">Verified</option>
+                          <option value="In Progress">In Progress</option>
+                          <option
+                            value="Resolved"
+                            disabled={!issue.resolvedPhoto}
+                            title={!issue.resolvedPhoto ? "Upload completed work proof image first" : ""}
                           >
-                            <span>✅ Resolved</span>
-                            <span style={{ fontSize: "11px", opacity: 0.8 }}>
-                              🔒 Locked
-                            </span>
-                          </div>
-                        ) : (
-                          <select
-                            className={`status-select ${getStatusBadgeClass(
-                              issue.status,
-                              !!issue.resolvedPhoto
-                            )}`}
-                            value={
-                              issue.status === "In Progress"
-                                ? "In Progress"
-                                : issue.status === "Verified"
-                                ? "Verified"
-                                : issue.status === "Rejected"
-                                ? "Rejected"
-                                : "Pending"
-                            }
-                            onChange={(e) =>
-                              handleStatusChange(issue._id, e.target.value)
-                            }
-                            disabled={updatingId === issue._id}
-                          >
-                            <option value="Pending">Pending</option>
-                            <option value="Verified">Verified</option>
-                            <option value="In Progress">In Progress</option>
-                            <option
-                              value="Resolved"
-                              disabled={!issue.resolvedPhoto}
-                              title={!issue.resolvedPhoto ? "Upload completed work proof image first" : ""}
-                            >
-                              {issue.resolvedPhoto ? "Resolved" : "Resolved (Proof Required)"}
-                            </option>
-                            <option value="Rejected">Rejected</option>
-                          </select>
-                        )}
-                      </div>
+                            {issue.resolvedPhoto ? "Resolved" : "Resolved (Proof Required)"}
+                          </option>
+                          <option value="Rejected">Rejected</option>
+                        </select>
+                      )}
                     </div>
                   </div>
                 );

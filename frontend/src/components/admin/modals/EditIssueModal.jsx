@@ -90,11 +90,7 @@ export default function EditIssueModal({
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <label style={{ margin: 0 }}>Description</label>
             </div>
-            <textarea
-              rows="3"
-              readOnly
-              disabled
-              value={editingIssue.description || editFormData.description || "No description provided."}
+            <div
               title="Complaint description cannot be edited by administrators"
               style={{
                 background: "rgba(255, 255, 255, 0.04)",
@@ -103,13 +99,16 @@ export default function EditIssueModal({
                 color: "#94a3b8",
                 padding: "10px 14px",
                 fontSize: "13.5px",
-                outline: "none",
+                lineHeight: "1.55",
                 width: "100%",
                 boxSizing: "border-box",
-                resize: "none",
                 cursor: "not-allowed",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
               }}
-            />
+            >
+              {editingIssue.description || editFormData.description || "No description provided."}
+            </div>
           </div>
 
           <div className="modal-actions" style={{ marginTop: "20px" }}>

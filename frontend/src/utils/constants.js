@@ -30,13 +30,7 @@ export function getCategoryIcon(category) {
 }
 
 export function getDeptIcon(name) {
-  if (!name) return "🏢";
-  const lower = name.toLowerCase();
-  if (lower.includes("electr") || lower.includes("light")) return "⚡";
-  if (lower.includes("water") || lower.includes("drain")) return "🚰";
-  if (lower.includes("road") || lower.includes("infra")) return "🚧";
-  if (lower.includes("sanitat") || lower.includes("waste") || lower.includes("garbage")) return "🗑️";
-  return "🏢";
+  return "";
 }
 
 export function getStatusClass(status) {
@@ -50,5 +44,30 @@ export function getPhotoUrl(path, apiBaseUrl = "") {
     return path;
   }
   return `${apiBaseUrl}${path}`;
+}
+
+export function getIssueCategory(issue, departments = []) {
+  if (!issue) return "General";
+  if (issue.category && issue.category !== "General") {
+    return issue.category;
+  }
+  const t = (issue.title || "").toLowerCase();
+  if (t.includes("light") || t.includes("lamp") || t.includes("electric")) return "Street Light";
+  if (t.includes("pothole") || t.includes("road") || t.includes("tar") || t.includes("street")) return "Road / Pothole";
+  if (t.includes("garbage") || t.includes("waste") || t.includes("trash") || t.includes("dump")) return "Garbage / Waste";
+  if (t.includes("water") || t.includes("leak") || t.includes("pipe")) return "Water Supply";
+  if (t.includes("drain") || t.includes("sewer") || t.includes("flood")) return "Drainage";
+  if (t.includes("safety") || t.includes("danger") || t.includes("crime")) return "Public Safety";
+
+  if (typeof issue.department === "object" && issue.department !== null && issue.department.name) {
+    return issue.department.name;
+  }
+  const deptId = typeof issue.department === "object" && issue.department !== null ? issue.department._id : issue.department;
+  if (deptId && Array.isArray(departments) && departments.length > 0) {
+    const dept = departments.find((d) => String(d._id) === String(deptId));
+    if (dept && dept.name) return dept.name;
+  }
+
+  return issue.category || "General";
 }
 

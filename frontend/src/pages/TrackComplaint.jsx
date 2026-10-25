@@ -7,13 +7,13 @@ import LightboxModal from "../components/admin/modals/LightboxModal";
 import { useToast } from "../context/useToast";
 import { API_BASE_URL } from "../config";
 import { getAuthHeaders, getCurrentUser } from "../utils/auth";
-import { getCategoryIcon } from "../utils/constants";
+import { getCategoryIcon, getIssueCategory } from "../utils/constants";
 
 const TRACKING_STEPS = [
-    { key: "Pending", label: "Pending", icon: "⏳", desc: "Logged in portal" },
-    { key: "Verified", label: "Verified", icon: "🔍", desc: "Admin verified" },
-    { key: "In Progress", label: "In Progress", icon: "🔧", desc: "Work underway" },
-    { key: "Resolved", label: "Resolved", icon: "✅", desc: "Work completed" },
+    { key: "Pending", label: "Pending", desc: "Logged in portal" },
+    { key: "Verified", label: "Verified", desc: "Admin verified" },
+    { key: "In Progress", label: "In Progress", desc: "Work underway" },
+    { key: "Resolved", label: "Resolved", desc: "Work completed" },
 ];
 
 function TrackComplaint() {
@@ -207,6 +207,10 @@ function TrackComplaint() {
 
     const getDepartmentName = (deptId) => {
         if (!deptId) return "Pending Admin Assignment";
+        if (typeof deptId === "object" && deptId !== null) {
+            if (deptId.name) return deptId.name;
+            deptId = deptId._id;
+        }
         const found = departments.find((d) => String(d._id) === String(deptId));
         return found ? found.name : "Assigned to Department";
     };
@@ -433,6 +437,20 @@ function TrackComplaint() {
                             const isEditing = editingIssueId === issue._id;
                             const currentStep = getStepIndex(issue.status);
 
+                            const locationText = locations[issue._id] || "Detecting location...";
+                            const hasValidCoords =
+                                typeof issue.latitude === "number" &&
+                                typeof issue.longitude === "number" &&
+                                (issue.latitude !== 0 || issue.longitude !== 0);
+
+                            const mapUrl = hasValidCoords
+                                ? `https://www.google.com/maps?q=${issue.latitude},${issue.longitude}`
+                                : locations[issue._id] &&
+                                  locations[issue._id] !== "Location unavailable" &&
+                                  locations[issue._id] !== "Detecting location..."
+                                ? `https://www.google.com/maps?q=${encodeURIComponent(locations[issue._id])}`
+                                : null;
+
                             return (
                                 <div className="complaint-card-container" key={issue._id}>
                                     {/* Straight Format from Left to Right */}
@@ -457,13 +475,22 @@ function TrackComplaint() {
                                                         alt="Citizen reported problem"
                                                         className="straight-thumb-img"
                                                     />
-                                                    <span className="straight-photo-badge">📷 Problem</span>
+                                                    <span className="straight-photo-badge">
+                                                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                                                            <circle cx="12" cy="13" r="4"></circle>
+                                                        </svg>
+                                                        <span>Problem</span>
+                                                    </span>
                                                 </button>
                                             ) : (
                                                 <div className="straight-icon-placeholder">
-                                                    <span>{getCategoryIcon(issue.category)}</span>
+                                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.6 }}>
+                                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                                        <line x1="9" y1="3" x2="9" y2="21"></line>
+                                                    </svg>
                                                     <span className="straight-icon-category-label">
-                                                        {issue.category || "General"}
+                                                        {getIssueCategory(issue, departments)}
                                                     </span>
                                                 </div>
                                             )}
@@ -484,48 +511,81 @@ function TrackComplaint() {
                                                         }}
                                                         type="button"
                                                     >
-                                                        📋 Copy
+                                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                                        </svg>
+                                                        <span>Copy</span>
                                                     </button>
                                                 </span>
                                             </div>
 
                                             <div className="straight-meta-row">
-                                                <span className="straight-meta-item">
-                                                    <strong>📁</strong> {issue.category || "General"}
+                                                <span className="straight-category-chip">
+                                                    {getIssueCategory(issue, departments)}
                                                 </span>
-                                                <span>•</span>
-                                                <span className="straight-meta-item">
-                                                    <strong>🏢</strong> {getDepartmentName(issue.department)}
+                                                
+                                                <span className="straight-dept-chip">
+                                                    {getDepartmentName(issue.department)}
                                                 </span>
-                                                <span>•</span>
-                                                <span className="straight-meta-item">
-                                                    <strong>📍</strong> {locations[issue._id] || "Getting location..."}
-                                                </span>
-                                                <span>•</span>
-                                                <span className="straight-meta-item">
-                                                    <strong>📅</strong> {new Date(issue.createdAt).toLocaleDateString()}
+
+                                                <span className="straight-meta-divider">•</span>
+
+                                                {mapUrl ? (
+                                                    <a
+                                                        href={mapUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="straight-meta-text straight-meta-location-link"
+                                                        title="Click to view location in Google Maps"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.85 }}>
+                                                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                                                            <circle cx="12" cy="10" r="3"></circle>
+                                                        </svg>
+                                                        <span className="straight-location-label">{locationText}</span>
+                                                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="straight-external-icon">
+                                                            <line x1="7" y1="17" x2="17" y2="7"></line>
+                                                            <polyline points="7 7 17 7 17 17"></polyline>
+                                                        </svg>
+                                                    </a>
+                                                ) : (
+                                                    <span className="straight-meta-text" title={locationText}>
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.75 }}>
+                                                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                                                            <circle cx="12" cy="10" r="3"></circle>
+                                                        </svg>
+                                                        <span className="straight-location-label">{locationText}</span>
+                                                    </span>
+                                                )}
+
+                                                <span className="straight-meta-divider">•</span>
+
+                                                <span className="straight-meta-text">
+                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.75 }}>
+                                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                                                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                                                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                                                    </svg>
+                                                    <span>{new Date(issue.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
                                                 </span>
                                             </div>
-
-                                            {issue.description && (
-                                                <p className="straight-desc-preview" title={issue.description}>
-                                                    <strong>Note:</strong> {issue.description}
-                                                </p>
-                                            )}
                                         </div>
 
-                                        {/* Col 3: Live 5-Step Stepper in straight line from left to right */}
+                                        {/* Col 3: Live Stepper in straight line from left to right */}
                                         <div className="straight-col-stepper">
                                             <div className="straight-stepper-header">
-                                                <span>Live Progress</span>
-                                                <span style={{ color: issue.status === "Rejected" ? "#ef4444" : "var(--neon)" }}>
-                                                    Stage: {!issue.status || issue.status === "Submitted" || issue.status === "Assigned" ? "Pending" : issue.status}
+                                                <span className="straight-stepper-label">Live Progress</span>
+                                                <span className={`straight-status-pill status-${(issue.status || "pending").toLowerCase().replace(/\s+/g, "-")}`}>
+                                                    {issue.status === "Assigned" || issue.status === "Submitted" || !issue.status ? "Pending" : issue.status}
                                                 </span>
                                             </div>
 
                                             {issue.status === "Rejected" ? (
-                                                <div style={{ color: "#ef4444", fontSize: "13px", padding: "10px 14px", background: "rgba(239, 68, 68, 0.1)", borderRadius: "8px", border: "1px solid rgba(239, 68, 68, 0.3)", display: "flex", alignItems: "center", gap: "8px" }}>
-                                                    <span>❌</span> <strong>Grievance Rejected:</strong> This complaint was reviewed and closed as rejected.
+                                                <div style={{ color: "#f87171", fontSize: "12.5px", padding: "10px 14px", background: "rgba(239, 68, 68, 0.1)", borderRadius: "8px", border: "1px solid rgba(239, 68, 68, 0.25)", display: "flex", alignItems: "center", gap: "8px" }}>
+                                                    <strong>Grievance Rejected:</strong> This complaint was reviewed and closed as rejected.
                                                 </div>
                                             ) : (
                                                 <div className="straight-stepper-track">
@@ -545,12 +605,17 @@ function TrackComplaint() {
                                                         return (
                                                             <div
                                                                 key={step.key}
-                                                                className={`straight-step-node ${isCompleted ? "completed" : ""
-                                                                    } ${isActive ? "active" : ""}`}
+                                                                className={`straight-step-node ${isCompleted ? "completed" : ""} ${isActive ? "active" : ""}`}
                                                                 title={`${step.label}: ${step.desc}`}
                                                             >
                                                                 <div className="straight-step-dot">
-                                                                    {isCompleted ? "✓" : step.icon}
+                                                                    {isCompleted ? (
+                                                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                                                                            <polyline points="20 6 9 17 4 12"></polyline>
+                                                                        </svg>
+                                                                    ) : (
+                                                                        <span>{idx + 1}</span>
+                                                                    )}
                                                                 </div>
                                                                 <span className="straight-step-text">{step.label}</span>
                                                             </div>
@@ -574,7 +639,10 @@ function TrackComplaint() {
                                                         }
                                                         onClick={() => openFeedbackModal(issue)}
                                                     >
-                                                        {issue.feedback?.rating ? `⭐ Feedback (${issue.feedback.rating}★)` : "⭐ Feedback"}
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill={issue.feedback?.rating ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                                        </svg>
+                                                        <span>{issue.feedback?.rating ? `Feedback (${issue.feedback.rating}★)` : "Feedback"}</span>
                                                     </button>
                                                 ) : issue.status === "Verified" || issue.status === "In Progress" || issue.status === "Assigned" || issue.status === "Rejected" ? null : (
                                                     <button
@@ -582,7 +650,17 @@ function TrackComplaint() {
                                                         onClick={() => (isEditing ? cancelEditing() : startEditing(issue))}
                                                         type="button"
                                                     >
-                                                        {isEditing ? "✕ Close" : "✏️ Edit"}
+                                                        {isEditing ? (
+                                                            <span>Close</span>
+                                                        ) : (
+                                                            <>
+                                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                                                </svg>
+                                                                <span>Edit</span>
+                                                            </>
+                                                        )}
                                                     </button>
                                                 )}
 
@@ -599,7 +677,12 @@ function TrackComplaint() {
                                                             })
                                                         }
                                                     >
-                                                        ✅ Proof
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                                            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                                            <polyline points="21 15 16 10 5 21"></polyline>
+                                                        </svg>
+                                                        <span>Proof</span>
                                                     </button>
                                                 )}
                                             </div>
@@ -609,7 +692,7 @@ function TrackComplaint() {
                                     {/* Inline Edit Drawer (only when user clicks Edit) */}
                                     {isEditing && issue.status !== "Resolved" && issue.status !== "Verified" && issue.status !== "In Progress" && issue.status !== "Assigned" && (
                                         <div className="complaint-edit-form" style={{ marginTop: "10px" }}>
-                                            <h4>✏️ Correct Complaint Details</h4>
+                                            <h4>Correct Complaint Details</h4>
                                             <div className="edit-form-field">
                                                 <label>Issue Title</label>
                                                 <input
@@ -647,7 +730,7 @@ function TrackComplaint() {
                                                     disabled={savingEdit}
                                                     type="button"
                                                 >
-                                                    {savingEdit ? "Saving..." : "💾 Save Changes"}
+                                                    {savingEdit ? "Saving..." : "Save Changes"}
                                                 </button>
                                                 <button
                                                     className="btn-cancel-edit"

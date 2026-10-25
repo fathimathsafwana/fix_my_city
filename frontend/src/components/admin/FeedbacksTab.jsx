@@ -70,22 +70,13 @@ export default function FeedbacksTab({
       {/* Empty State */}
       {!loadingFeedbacks && filteredFeedbacks.length === 0 && (
         <div className="no-issues-placeholder">
-          <div className="empty-state-icon">⭐</div>
+          
           <h3>No Citizen Feedback Found</h3>
           <p>
             {feedbacks.length === 0
               ? "Citizens have not submitted ratings or feedback yet."
               : "No feedback matches your search filter."}
           </p>
-          {feedbackSearchQuery && (
-            <button
-              className="btn-clear-search"
-              onClick={() => setFeedbackSearchQuery("")}
-              type="button"
-            >
-              Clear Search
-            </button>
-          )}
         </div>
       )}
 
