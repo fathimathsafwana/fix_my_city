@@ -65,8 +65,8 @@ function DepartmentDashboard() {
     }
   }, [lightboxImage]);
 
-  // Current logged in user from localStorage
-  const currentUser = useMemo(() => getCurrentUser(), []);
+  // Current logged in user from localStorage (and synced from backend)
+  const [currentUser, setCurrentUser] = useState(() => getCurrentUser());
 
   const officerDeptId = useMemo(() => {
     try {
@@ -77,6 +77,53 @@ function DepartmentDashboard() {
     } catch {}
     return "";
   }, [currentUser]);
+
+  const [selectedDeptId, setSelectedDeptId] = useState(() => {
+    try {
+      const u = getCurrentUser();
+      if (u && u.department) {
+        return typeof u.department === "object" ? String(u.department._id) : String(u.department);
+      }
+    } catch {}
+    return "All";
+  });
+
+  // Sync user profile on mount to ensure fresh department role permissions
+  useEffect(() => {
+    const user = getCurrentUser();
+    if (user && (user.id || user._id)) {
+      fetch(`${API_BASE_URL}/api/users/${user.id || user._id}`, {
+        headers: getAuthHeaders(),
+      })
+        .then((res) => res.json())
+        .then((fresh) => {
+          if (fresh && fresh._id) {
+            const updated = {
+              ...user,
+              name: fresh.name,
+              email: fresh.email,
+              role: fresh.role,
+              department: fresh.department,
+            };
+            localStorage.setItem("user", JSON.stringify(updated));
+            setCurrentUser(updated);
+            if (!fresh.department) {
+              setSelectedDeptId("All");
+            } else if (typeof fresh.department === "object" && fresh.department._id) {
+              setSelectedDeptId(String(fresh.department._id));
+            } else if (typeof fresh.department === "string") {
+              setSelectedDeptId(fresh.department);
+            }
+          }
+        })
+        .catch(console.error);
+    }
+  }, []);
+
+  const activeDept = useMemo(() => {
+    if (selectedDeptId === "All") return null;
+    return departments.find((d) => String(d._id) === String(selectedDeptId)) || null;
+  }, [departments, selectedDeptId]);
 
   const fetchIssues = () => {
     fetch(`${API_BASE_URL}/api/issues`, {
@@ -308,7 +355,7 @@ function DepartmentDashboard() {
           ? String(issue.department._id)
           : String(issue.department);
 
-      if (officerDeptId && issueDeptId && issueDeptId !== officerDeptId) {
+      if (selectedDeptId !== "All" && issueDeptId !== selectedDeptId) {
         return false;
       }
 
@@ -330,12 +377,12 @@ function DepartmentDashboard() {
 
       return matchesStatus && matchesSearch;
     });
-  }, [issues, officerDeptId, statusFilter, searchQuery]);
+  }, [issues, selectedDeptId, statusFilter, searchQuery]);
 
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, searchQuery]);
+  }, [statusFilter, searchQuery, selectedDeptId]);
 
   // Paginated Complaints
   const totalDeptPages = Math.ceil(filteredIssues.length / pageSize) || 1;
@@ -346,13 +393,13 @@ function DepartmentDashboard() {
 
   // Statistics for Department
   const stats = useMemo(() => {
-    const relevant = officerDeptId
+    const relevant = selectedDeptId !== "All"
       ? issues.filter((i) => {
           const deptId =
             typeof i.department === "object" && i.department !== null
               ? String(i.department._id)
               : String(i.department);
-          return deptId === officerDeptId;
+          return deptId === selectedDeptId;
         })
       : issues;
 
@@ -366,7 +413,7 @@ function DepartmentDashboard() {
       resolved: relevant.filter((i) => i.status === "Resolved" || !!i.resolvedPhoto).length,
       rejected: relevant.filter((i) => i.status === "Rejected").length,
     };
-  }, [issues, officerDeptId]);
+  }, [issues, selectedDeptId]);
 
   const getStatusBadgeClass = (status, hasResolvedPhoto) => {
     if (hasResolvedPhoto || status === "Resolved") {
@@ -452,18 +499,16 @@ function DepartmentDashboard() {
         <div className="dashboard-header">
           <div className="dept-header-title-wrap">
             <h1 className="dashboard-title">
-              {currentDept ? (
-                <span>{currentDept.name}</span>
+              {activeDept ? (
+                <span>{activeDept.name}</span>
               ) : (
-                <>
-                  <span className="accent-text">Department</span> Operations Center
-                </>
+                <span>Municipal Department Dashboard</span>
               )}
             </h1>
             <p className="dashboard-subtitle">
-              {currentDept
-                ? `Viewing issues assigned to ${currentDept.name}`
-                : `All municipal departments overview • ${stats.total} total complaints`}
+              {activeDept
+                ? `Viewing issues assigned to ${activeDept.name} • ${stats.total} total complaints`
+                : `Please log in using a dedicated department account (Sanitation, Roads, or Water Supply).`}
             </p>
           </div>
         </div>
@@ -491,6 +536,7 @@ function DepartmentDashboard() {
               )}
             </div>
 
+
             <div className="toolbar-control-group">
               <label className="toolbar-control-label" htmlFor="status-select-filter">
                 Status:
@@ -502,12 +548,12 @@ function DepartmentDashboard() {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 title="Filter complaints by workflow status"
               >
-                <option value="All">📊 All Statuses ({stats.total})</option>
-                <option value="Pending">⏳ Pending ({stats.pending})</option>
-                <option value="Verified">🔍 Verified ({stats.verified})</option>
-                <option value="In Progress">🔧 In Progress ({stats.inProgress})</option>
-                <option value="Resolved">✨ Resolved ({stats.resolved})</option>
-                <option value="Rejected">❌ Rejected ({stats.rejected})</option>
+                <option value="All">📊 All Statuses</option>
+                <option value="Pending">⏳ Pending</option>
+                <option value="Verified">🔍 Verified</option>
+                <option value="In Progress">🔧 In Progress</option>
+                <option value="Resolved">✨ Resolved</option>
+                <option value="Rejected">❌ Rejected</option>
               </select>
             </div>
           </div>
@@ -527,10 +573,8 @@ function DepartmentDashboard() {
               <div className="empty-icon">📂</div>
               <h3>No Complaints Found</h3>
               <p>
-                {currentDept
-                  ? `No complaints currently match filters for ${
-                      currentDept?.name || "this department"
-                    }.`
+                {activeDept
+                  ? `No complaints currently match filters for ${activeDept.name}.`
                   : "No complaints found matching the current search or filters."}
               </p>
               <p
@@ -562,13 +606,14 @@ function DepartmentDashboard() {
                     <div className="dept-card-top-bar">
                       <span
                         className="dept-card-id"
-                        title="Click to copy Complaint ID"
+                        title="Click to copy Tracking ID"
                         onClick={() => {
-                          navigator.clipboard.writeText(issue._id);
-                          showToast("Complaint ID copied!");
+                          const trackId = (issue.trackingId || String(issue._id)).slice(0, 10);
+                          navigator.clipboard.writeText(trackId);
+                          showToast("Tracking ID copied!");
                         }}
                       >
-                        #{issue._id ? issue._id.slice(-6) : "ID"}
+                        #{(issue.trackingId || String(issue._id)).slice(0, 10)}
                       </span>
 
                       <div className="dept-card-actions">

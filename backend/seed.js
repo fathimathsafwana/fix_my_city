@@ -3,15 +3,13 @@ const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 const User = require("./models/User");
 const Department = require("./models/Department");
-
 async function seed() {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
     console.log("Connected to MongoDB for seeding...");
 
-    // 1. Create Default Departments if none exist
+    // 1. Create Default Departments if none exist (The 3 official municipal departments)
     const defaultDepartments = [
-      { name: "Electricity & Street Lighting", description: "Streetlights, cables, power lines, and electrical fixtures" },
       { name: "Sanitation & Waste Management", description: "Garbage collection, street sweeping, dumpsters, public hygiene" },
       { name: "Roads & Infrastructure", description: "Potholes, broken footpaths, road cracks, road signs" },
       { name: "Water Supply & Drainage", description: "Water pipeline leaks, clogged drains, sewage overflows" }
@@ -47,42 +45,52 @@ async function seed() {
       console.log(`Updated Admin user: ${adminEmail}`);
     }
 
-    // 3. Create / Update Department Staff Account
-    const deptEmail = "department@gmail.com";
-    let deptUser = await User.findOne({ email: deptEmail });
-    const primaryDept = createdDepts[0];
-    if (!deptUser) {
-      deptUser = await User.create({
-        name: "Department Officer",
-        email: deptEmail,
-        password: "Dept@123",
-        role: "department",
-        department: primaryDept ? primaryDept._id : null
-      });
-      console.log(`Created Department user: ${deptEmail}`);
-    } else {
-      deptUser.name = "Department Officer";
-      deptUser.role = "department";
-      deptUser.password = "Dept@123";
-      if (!deptUser.department && primaryDept) {
-        deptUser.department = primaryDept._id;
+    // 3. Remove legacy / general department accounts (Only dedicated department accounts are used)
+    await User.deleteOne({ email: "department@gmail.com" });
+
+    // 4. Create / Update Dedicated Department Logins for the 3 municipal departments
+    const deptLogins = [
+      { email: "sanitation@gmail.com", name: "Sanitation Officer", password: "Sanitation@123", deptName: "Sanitation & Waste Management" },
+      { email: "roads@gmail.com", name: "Roads Officer", password: "Roads@123", deptName: "Roads & Infrastructure" },
+      { email: "water@gmail.com", name: "Water Supply Officer", password: "Water@123", deptName: "Water Supply & Drainage" },
+    ];
+
+    for (const dLogin of deptLogins) {
+      const targetDept = createdDepts.find((d) => d.name === dLogin.deptName);
+      if (!targetDept) continue;
+
+      let existingOfficer = await User.findOne({ email: dLogin.email });
+      if (!existingOfficer) {
+        await User.create({
+          name: dLogin.name,
+          email: dLogin.email,
+          password: dLogin.password,
+          role: "department",
+          department: targetDept._id,
+        });
+        console.log(`Created dedicated department officer: ${dLogin.email} (${dLogin.deptName})`);
+      } else {
+        existingOfficer.name = dLogin.name;
+        existingOfficer.role = "department";
+        existingOfficer.password = dLogin.password;
+        existingOfficer.department = targetDept._id;
+        await existingOfficer.save();
+        console.log(`Updated dedicated department officer: ${dLogin.email} (${dLogin.deptName})`);
       }
-      await deptUser.save();
-      console.log(`Updated Department user: ${deptEmail}`);
     }
 
-    // 4. Remove any unwanted dummy seeded citizen accounts
-    // Citizens are individual real persons who register their own accounts
+    // 5. Clean up any unwanted dummy citizen accounts
     const removedDummy = await User.deleteOne({ email: "user@gmail.com" });
     if (removedDummy.deletedCount > 0) {
       console.log("Removed dummy citizen account: user@gmail.com");
     }
 
     console.log("\n==========================================");
-    console.log("Seeding complete! (Admin & Department only)");
+    console.log("Seeding complete! (3 Official Dedicated Departments)");
     console.log("Admin: admin@gmail.com / Admin@123");
-    console.log("Department: department@gmail.com / Dept@123");
-    console.log("Note: Citizens register their own accounts at /register");
+    console.log("Sanitation Dept: sanitation@gmail.com / Sanitation@123");
+    console.log("Roads Dept: roads@gmail.com / Roads@123");
+    console.log("Water Dept: water@gmail.com / Water@123");
     console.log("==========================================\n");
 
     await mongoose.disconnect();

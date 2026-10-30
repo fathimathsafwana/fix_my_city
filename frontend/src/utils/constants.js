@@ -3,34 +3,25 @@
  */
 
 export const CATEGORIES = [
-  "Electricity & Street Lighting",
   "Sanitation & Waste Management",
   "Roads & Infrastructure",
   "Water Supply & Drainage",
-  "Public Safety",
-  "General Civic Grievance",
-  "Road / Pothole",
-  "Street Light",
-  "Garbage / Waste",
-  "Water Supply",
-  "Drainage",
-  "Other",
 ];
 
 export function getCategoryIcon(category) {
-  if (!category) return "⚠️";
+  if (!category) return "🏢";
   const lower = category.toLowerCase();
-  if (lower.includes("road") || lower.includes("pothole")) return "🚧";
-  if (lower.includes("light") || lower.includes("electric")) return "💡";
-  if (lower.includes("garbage") || lower.includes("waste") || lower.includes("sanitat")) return "🗑️";
-  if (lower.includes("water") || lower.includes("supply")) return "🚰";
-  if (lower.includes("drainage") || lower.includes("sewage")) return "🌊";
-  if (lower.includes("safety") || lower.includes("public")) return "🚨";
-  return "📍";
+  if (lower.includes("road") || lower.includes("pothole") || lower.includes("infrastruct") || lower.includes("asphalt")) return "🚧";
+  if (lower.includes("garbage") || lower.includes("waste") || lower.includes("sanitat") || lower.includes("clean") || lower.includes("trash")) return "🗑️";
+  if (lower.includes("water") || lower.includes("drainage") || lower.includes("supply") || lower.includes("leak") || lower.includes("sewage")) return "🚰";
+  if (lower.includes("electr") || lower.includes("light") || lower.includes("power") || lower.includes("wiring")) return "⚡";
+  if (lower.includes("plumb")) return "🔧";
+  if (lower.includes("safe") || lower.includes("police") || lower.includes("fire") || lower.includes("security")) return "🚨";
+  return "🏢";
 }
 
 export function getDeptIcon(name) {
-  return "";
+  return getCategoryIcon(name);
 }
 
 export function getStatusClass(status) {
@@ -46,28 +37,42 @@ export function getPhotoUrl(path, apiBaseUrl = "") {
   return `${apiBaseUrl}${path}`;
 }
 
-export function getIssueCategory(issue, departments = []) {
-  if (!issue) return "General";
-  if (issue.category && issue.category !== "General") {
-    return issue.category;
-  }
-  const t = (issue.title || "").toLowerCase();
-  if (t.includes("light") || t.includes("lamp") || t.includes("electric")) return "Street Light";
-  if (t.includes("pothole") || t.includes("road") || t.includes("tar") || t.includes("street")) return "Road / Pothole";
-  if (t.includes("garbage") || t.includes("waste") || t.includes("trash") || t.includes("dump")) return "Garbage / Waste";
-  if (t.includes("water") || t.includes("leak") || t.includes("pipe")) return "Water Supply";
-  if (t.includes("drain") || t.includes("sewer") || t.includes("flood")) return "Drainage";
-  if (t.includes("safety") || t.includes("danger") || t.includes("crime")) return "Public Safety";
+export function getTrackingId(issue) {
+  if (!issue) return "";
+  const raw = issue.trackingId || (typeof issue === "string" ? issue : issue._id || issue.id || "");
+  return String(raw).slice(0, 10);
+}
 
+export function getIssueCategory(issue, departments = []) {
+  if (!issue) return "Sanitation & Waste Management";
+
+  // If department object is already populated
   if (typeof issue.department === "object" && issue.department !== null && issue.department.name) {
     return issue.department.name;
   }
+
+  // If department ID can be looked up from list
   const deptId = typeof issue.department === "object" && issue.department !== null ? issue.department._id : issue.department;
   if (deptId && Array.isArray(departments) && departments.length > 0) {
     const dept = departments.find((d) => String(d._id) === String(deptId));
     if (dept && dept.name) return dept.name;
   }
 
-  return issue.category || "General";
+  const raw = ((issue.category || "") + " " + (issue.title || "")).toLowerCase();
+  if (raw.includes("garbage") || raw.includes("waste") || raw.includes("trash") || raw.includes("dump") || raw.includes("sanitat")) {
+    return "Sanitation & Waste Management";
+  }
+  if (raw.includes("road") || raw.includes("pothole") || raw.includes("tar") || raw.includes("street") || raw.includes("asphalt") || raw.includes("infrastruct")) {
+    return "Roads & Infrastructure";
+  }
+  if (raw.includes("water") || raw.includes("leak") || raw.includes("pipe") || raw.includes("drain") || raw.includes("sewer") || raw.includes("flood")) {
+    return "Water Supply & Drainage";
+  }
+
+  if (issue.category && CATEGORIES.includes(issue.category)) {
+    return issue.category;
+  }
+
+  return "Sanitation & Waste Management";
 }
 

@@ -707,9 +707,11 @@ function AdminDashboard() {
     return {
       total: relevant.length,
       pending: relevant.filter(
-        (i) => !i.status || i.status === "Pending" || i.status === "Submitted"
+        (i) => (!i.status || i.status === "Pending" || i.status === "Submitted") && !i.resolvedPhoto
       ).length,
-      assigned: relevant.filter((i) => i.status === "Assigned").length,
+      assigned: relevant.filter((i) => i.status === "Assigned" && !i.resolvedPhoto).length,
+      inProgress: relevant.filter((i) => i.status === "In Progress" && !i.resolvedPhoto).length,
+      resolved: relevant.filter((i) => i.status === "Resolved" || !!i.resolvedPhoto).length,
       rejected: relevant.filter((i) => i.status === "Rejected").length,
     };
   }, [issues, departmentFilter]);
@@ -1038,6 +1040,7 @@ function AdminDashboard() {
           {activeTab === "users" && (
             <UsersTab
               users={users}
+              issues={issues}
               filteredUsers={filteredUsers}
               paginatedUsers={paginatedUsers}
               userStats={userStats}

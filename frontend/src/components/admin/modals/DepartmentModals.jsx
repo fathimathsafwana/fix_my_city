@@ -1,3 +1,5 @@
+import { checkPasswordStrength } from "../../../utils/validation";
+
 export function CreateDeptModal({
   isOpen,
   newDeptData,
@@ -51,7 +53,7 @@ export function CreateDeptModal({
                 outline: "none",
                 width: "100%",
                 boxSizing: "border-box",
-                resize: "vertical",
+                resize: "none",
               }}
               value={newDeptData.description}
               onChange={(e) =>
@@ -99,12 +101,23 @@ export function CreateDeptModal({
                   cursor: "pointer",
                   fontSize: "18px",
                   padding: 0,
+                  zIndex: 2,
                 }}
                 title={showDeptPassword ? "Hide password" : "Show password"}
               >
                 {showDeptPassword ? "🙈" : "👁️"}
               </button>
             </div>
+            {newDeptData.password && !checkPasswordStrength(newDeptData.password).isValid && (
+              <div className="field-inline-error">
+                <span className="field-inline-error-icon">⚠️</span>
+                <span>
+                  {checkPasswordStrength(newDeptData.password).errors.length === 1
+                    ? `${checkPasswordStrength(newDeptData.password).errors[0]}.`
+                    : "Password must be at least 8 characters and include uppercase, lowercase, number, and a special character."}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="modal-actions" style={{ marginTop: "20px" }}>
@@ -271,7 +284,7 @@ export function EditDeptModal({
                 outline: "none",
                 width: "100%",
                 boxSizing: "border-box",
-                resize: "vertical",
+                resize: "none",
               }}
               value={editDeptData.description}
               onChange={(e) =>
@@ -292,7 +305,6 @@ export function EditDeptModal({
               }
             />
           </div>
-
           <div className="modal-form-group">
             <label>Reset Password (leave blank to keep current)</label>
             <div style={{ position: "relative" }}>
@@ -318,12 +330,23 @@ export function EditDeptModal({
                   cursor: "pointer",
                   fontSize: "18px",
                   padding: 0,
+                  zIndex: 2,
                 }}
                 title={showEditDeptPassword ? "Hide password" : "Show password"}
               >
                 {showEditDeptPassword ? "🙈" : "👁️"}
               </button>
             </div>
+            {editDeptData.password && !checkPasswordStrength(editDeptData.password).isValid && (
+              <div className="field-inline-error">
+                <span className="field-inline-error-icon">⚠️</span>
+                <span>
+                  {checkPasswordStrength(editDeptData.password).errors.length === 1
+                    ? `${checkPasswordStrength(editDeptData.password).errors[0]}.`
+                    : "Password must be at least 8 characters and include uppercase, lowercase, number, and a special character."}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="modal-actions" style={{ marginTop: "16px" }}>
@@ -347,4 +370,3 @@ export function EditDeptModal({
     </div>
   );
 }
-

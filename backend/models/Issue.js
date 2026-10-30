@@ -39,6 +39,12 @@ const issueSchema = new mongoose.Schema(
       default: null,
     },
 
+    trackingId: {
+      type: String,
+      required: false,
+      trim: true,
+      index: true,
+    },
     status: {
       type: String,
       enum: ["Pending", "Verified", "In Progress", "Resolved", "Rejected", "Submitted", "Assigned"],
@@ -75,5 +81,11 @@ const issueSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+issueSchema.pre("save", function () {
+  if (!this.trackingId && this._id) {
+    this.trackingId = this._id.toString().slice(0, 10);
+  }
+});
 
 module.exports = mongoose.model("Issue", issueSchema);

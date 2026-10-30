@@ -1,5 +1,55 @@
 import Pagination from "../Pagination";
 
+const getDeptTheme = (name = "") => {
+  const n = (name || "").toLowerCase();
+  if (n.includes("sanitat") || n.includes("waste") || n.includes("garbage")) {
+    return {
+      icon: "🗑️",
+      accent: "#10b981",
+      glow: "rgba(16, 185, 129, 0.25)",
+      border: "rgba(16, 185, 129, 0.35)",
+      borderHover: "rgba(16, 185, 129, 0.6)",
+      heroBg: "linear-gradient(135deg, rgba(16, 185, 129, 0.22) 0%, rgba(13, 17, 26, 0.4) 100%)",
+      pillBg: "rgba(16, 185, 129, 0.15)",
+      tag: "Sanitation & Waste",
+    };
+  }
+  if (n.includes("road") || n.includes("pothole") || n.includes("infrastruct")) {
+    return {
+      icon: "🚧",
+      accent: "#f59e0b",
+      glow: "rgba(245, 158, 11, 0.25)",
+      border: "rgba(245, 158, 11, 0.35)",
+      borderHover: "rgba(245, 158, 11, 0.6)",
+      heroBg: "linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0%, rgba(13, 17, 26, 0.4) 100%)",
+      pillBg: "rgba(245, 158, 11, 0.15)",
+      tag: "Roads & Civil",
+    };
+  }
+  if (n.includes("water") || n.includes("drain") || n.includes("sewer")) {
+    return {
+      icon: "🚰",
+      accent: "#06b6d4",
+      glow: "rgba(6, 182, 212, 0.25)",
+      border: "rgba(6, 182, 212, 0.35)",
+      borderHover: "rgba(6, 182, 212, 0.6)",
+      heroBg: "linear-gradient(135deg, rgba(6, 182, 212, 0.22) 0%, rgba(13, 17, 26, 0.4) 100%)",
+      pillBg: "rgba(6, 182, 212, 0.15)",
+      tag: "Water Supply & Drainage",
+    };
+  }
+  return {
+    icon: "🏢",
+    accent: "#a855f7",
+    glow: "rgba(168, 85, 247, 0.25)",
+    border: "rgba(168, 85, 247, 0.35)",
+    borderHover: "rgba(168, 85, 247, 0.6)",
+    heroBg: "linear-gradient(135deg, rgba(168, 85, 247, 0.22) 0%, rgba(13, 17, 26, 0.4) 100%)",
+    pillBg: "rgba(168, 85, 247, 0.15)",
+    tag: "Municipal Authority",
+  };
+};
+
 export default function DepartmentsTab({
   departments = [],
   filteredDepartments = [],
@@ -201,63 +251,129 @@ export default function DepartmentsTab({
       {filteredDepartments.length > 0 && viewMode === "cards" && (
         <div className="dashboard-cards-grid">
           {paginatedDepartments.map((dept) => {
-            const assignedCount = issues.filter(
+            const theme = getDeptTheme(dept.name);
+            const deptIssues = issues.filter(
               (i) =>
                 (typeof i.department === "object" && i.department !== null
                   ? i.department._id
                   : i.department) === dept._id
+            );
+            const totalComplaints = deptIssues.length;
+            const pendingCount = deptIssues.filter(
+              (i) => (!i.status || i.status === "Pending" || i.status === "Assigned") && !i.resolvedPhoto
+            ).length;
+            const inProgressCount = deptIssues.filter(
+              (i) => i.status === "In Progress" && !i.resolvedPhoto
+            ).length;
+            const resolvedCount = deptIssues.filter(
+              (i) => i.status === "Resolved" || !!i.resolvedPhoto
             ).length;
 
+            const resolvedPct = totalComplaints > 0 ? Math.round((resolvedCount / totalComplaints) * 100) : 0;
+            const inProgressPct = totalComplaints > 0 ? Math.round((inProgressCount / totalComplaints) * 100) : 0;
+            const pendingPct = totalComplaints > 0 ? Math.max(0, 100 - resolvedPct - inProgressPct) : 0;
+
             return (
-              <div className="dashboard-card" key={dept._id}>
-                <div className="card-top-row">
-                  <span className="id-badge">#{dept._id.slice(-6)}</span>
-                  <span
-                    className="category-pill"
-                    style={{
-                      background: "rgba(168, 85, 247, 0.15)",
-                      color: "#c084fc",
-                      borderColor: "rgba(168, 85, 247, 0.3)",
-                    }}
-                  >
-                    Department
-                  </span>
+              <div
+                className="dept-bento-card"
+                key={dept._id}
+                style={{
+                  "--dept-color": theme.accent,
+                  "--dept-glow": theme.glow,
+                  "--dept-border": theme.border,
+                  "--dept-border-hover": theme.borderHover,
+                  "--dept-hero-bg": theme.heroBg,
+                  "--dept-pill-bg": theme.pillBg,
+                }}
+              >
+                {/* Hero Header Banner */}
+                <div className="dept-bento-hero">
+                  <div className="dept-bento-hero-top">
+                    <div className="dept-bento-icon-wrapper">
+                      <span>{theme.icon}</span>
+                    </div>
+                    <div className="dept-bento-badges">
+                      <span className="dept-bento-id">#{dept._id.slice(-6)}</span>
+                    </div>
+                  </div>
+                  <h3 className="dept-bento-title" title={dept.name}>
+                    {dept.name}
+                  </h3>
                 </div>
 
-                <h3 className="card-title" title={dept.name}>
-                  {dept.name}
-                </h3>
+                {/* Card Body */}
+                <div className="dept-bento-body">
+                  <p className="dept-bento-desc" title={dept.description}>
+                    {dept.description || "Official municipal authority managing citizen complaints and infrastructure."}
+                  </p>
 
-                <p className="card-description">
-                  {dept.description || "No description provided."}
-                </p>
+                  {/* Resolution Efficiency Progress Tracker */}
+                  <div className="dept-bento-resolution-wrap">
+                    <div className="dept-bento-resolution-header">
+                      <span className="dept-bento-res-label">Resolution Efficiency</span>
+                      <span className="dept-bento-res-rate">
+                        {resolvedPct}% Resolved
+                      </span>
+                    </div>
+                    <div className="dept-bento-progress-track">
+                      {resolvedPct > 0 && (
+                        <div
+                          className="dept-bento-progress-bar bar-resolved"
+                          style={{ width: `${resolvedPct}%` }}
+                          title={`${resolvedCount} Resolved`}
+                        />
+                      )}
+                      {inProgressPct > 0 && (
+                        <div
+                          className="dept-bento-progress-bar bar-progress"
+                          style={{ width: `${inProgressPct}%` }}
+                          title={`${inProgressCount} In Work`}
+                        />
+                      )}
+                      {pendingPct > 0 && (
+                        <div
+                          className="dept-bento-progress-bar bar-pending"
+                          style={{ width: `${pendingPct}%` }}
+                          title={`${pendingCount} Pending`}
+                        />
+                      )}
+                    </div>
+                    <div className="dept-bento-resolution-legend">
+                      <span className="dept-legend-item">
+                        <span className="dept-legend-dot dot-resolved" /> {resolvedCount} Resolved
+                      </span>
+                      <span className="dept-legend-item">
+                        <span className="dept-legend-dot dot-progress" /> {inProgressCount} In Work
+                      </span>
+                      <span className="dept-legend-item">
+                        <span className="dept-legend-dot dot-pending" /> {pendingCount} Pending
+                      </span>
+                    </div>
+                  </div>
 
-                <div className="card-meta-chips-row">
-                  {dept.email && (
-                    <span className="meta-chip">{dept.email}</span>
-                  )}
-                  <span className="meta-chip">
-                    {assignedCount} Complaints
-                  </span>
+                  {/* Official Contact Info */}
+                  <div className="dept-bento-email-strip">
+                    <span>✉️</span>
+                    <span className="dept-bento-email-text">{dept.email || "No email registered"}</span>
+                  </div>
                 </div>
 
-                <div className="card-controls-footer">
-                  <span className="card-date">
-                    {dept.createdAt
-                      ? new Date(dept.createdAt).toLocaleDateString()
-                      : "Active"}
+                {/* Card Footer Bar */}
+                <div className="dept-bento-footer">
+                  <span className="dept-bento-date">
+                    📅 {dept.createdAt ? new Date(dept.createdAt).toLocaleDateString() : "Active"}
                   </span>
-                  <div className="table-action-icons">
+                  <div className="dept-bento-actions">
                     <button
-                      className="btn-action-icon btn-view-icon"
+                      className="btn-bento-action btn-bento-primary"
                       onClick={() => onViewDept(dept)}
-                      title="View Details"
+                      title="Inspect Department Details"
                       type="button"
                     >
-                      👁️
+                      👁️ 
                     </button>
                     <button
-                      className="btn-action-icon btn-edit-icon"
+                      className="btn-bento-action btn-bento-edit"
                       onClick={() => onEditDept(dept)}
                       title="Edit Department"
                       type="button"
@@ -265,7 +381,7 @@ export default function DepartmentsTab({
                       ✏️
                     </button>
                     <button
-                      className="btn-action-icon btn-delete-icon"
+                      className="btn-bento-action btn-bento-delete"
                       onClick={() => onDeleteDept(dept._id, dept.name)}
                       title="Delete Department"
                       type="button"

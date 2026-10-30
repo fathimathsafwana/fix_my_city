@@ -7,7 +7,7 @@ import LightboxModal from "../components/admin/modals/LightboxModal";
 import { useToast } from "../context/useToast";
 import { API_BASE_URL } from "../config";
 import { getAuthHeaders, getCurrentUser } from "../utils/auth";
-import { getCategoryIcon, getIssueCategory } from "../utils/constants";
+import { getCategoryIcon, getIssueCategory, getTrackingId } from "../utils/constants";
 
 const TRACKING_STEPS = [
     { key: "Pending", label: "Pending", desc: "Logged in portal" },
@@ -112,9 +112,12 @@ function TrackComplaint() {
 
                 if (queryId) {
                     setSearchId(queryId);
-                    const matched = list.filter((item) =>
-                        item._id?.toLowerCase().includes(queryId.toLowerCase())
-                    );
+                    const q = queryId.toLowerCase();
+                    const matched = list.filter((item) => {
+                        const fullId = String(item._id || "").toLowerCase();
+                        const tid = getTrackingId(item).toLowerCase();
+                        return fullId.includes(q) || tid.includes(q);
+                    });
                     setIssues(matched.length > 0 ? matched : list);
                 } else {
                     setIssues(list);
@@ -169,13 +172,17 @@ function TrackComplaint() {
             return;
         }
 
-        const filtered = allIssues.filter(
-            (issue) =>
-                issue._id?.toLowerCase().includes(query) ||
+        const filtered = allIssues.filter((issue) => {
+            const fullId = String(issue._id || "").toLowerCase();
+            const tid = getTrackingId(issue).toLowerCase();
+            return (
+                tid.includes(query) ||
+                fullId.includes(query) ||
                 issue.title?.toLowerCase().includes(query) ||
                 issue.category?.toLowerCase().includes(query) ||
                 issue.description?.toLowerCase().includes(query)
-        );
+            );
+        });
 
         if (filtered.length > 0) {
             setIssues(filtered);
@@ -394,7 +401,7 @@ function TrackComplaint() {
             <div className="search-box">
                 <input
                     type="text"
-                    placeholder="Search by Complaint ID, title, or category..."
+                    placeholder="Search by 10-character Tracking ID, title, or category..."
                     value={searchId}
                     onChange={(e) => setSearchId(e.target.value)}
                     onKeyDown={(e) => {
@@ -501,13 +508,14 @@ function TrackComplaint() {
                                             <div className="straight-title-row">
                                                 <h3 className="straight-title">{issue.title}</h3>
                                                 <span className="straight-id-pill">
-                                                    ID: <code>{issue._id}</code>
+                                                    ID: <code>{getTrackingId(issue)}</code>
                                                     <button
                                                         className="btn-copy-id"
-                                                        title="Copy Complaint ID"
+                                                        title="Copy 10-character Tracking ID"
                                                         onClick={() => {
-                                                            navigator.clipboard.writeText(issue._id);
-                                                            showToast("Complaint ID copied!", "success");
+                                                            const trackId = getTrackingId(issue);
+                                                            navigator.clipboard.writeText(trackId);
+                                                            showToast("Tracking ID copied!", "success");
                                                         }}
                                                         type="button"
                                                     >
@@ -520,17 +528,43 @@ function TrackComplaint() {
                                                 </span>
                                             </div>
 
-                                            <div className="straight-meta-row">
-                                                <span className="straight-category-chip">
-                                                    {getIssueCategory(issue, departments)}
-                                                </span>
-                                                
-                                                <span className="straight-dept-chip">
-                                                    {getDepartmentName(issue.department)}
-                                                </span>
+                                            {(() => {
+                                                const rawDept = getDepartmentName(issue.department);
+                                                const categoryName = getIssueCategory(issue, departments);
+                                                const isAssigned = rawDept && rawDept !== "Pending Admin Assignment" && rawDept !== "Assigned to Department";
+                                                const deptDisplayName = isAssigned ? rawDept : categoryName;
+                                                const icon = getCategoryIcon(deptDisplayName);
 
-                                                <span className="straight-meta-divider">•</span>
+                                                return (
+                                                    <div className="straight-meta-row">
+                                                        <span className="straight-dept-chip" style={{
+                                                            background: "rgba(56, 189, 248, 0.12)",
+                                                            color: "#38bdf8",
+                                                            border: "1px solid rgba(56, 189, 248, 0.3)",
+                                                            fontWeight: 600,
+                                                            display: "inline-flex",
+                                                            alignItems: "center",
+                                                            gap: "5px"
+                                                        }}>
+                                                            <span>{icon}</span>
+                                                            <span>{deptDisplayName}</span>
+                                                        </span>
+                                                        {!isAssigned && (
+                                                            <span className="straight-dept-chip" style={{
+                                                                background: "rgba(245, 158, 11, 0.1)",
+                                                                color: "#fbbf24",
+                                                                border: "1px solid rgba(245, 158, 11, 0.25)",
+                                                                fontSize: "11px",
+                                                                fontWeight: 500
+                                                            }}>
+                                                                ⏳ Pending Assignment
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
 
+                                            <div className="straight-meta-row straight-meta-details-row">
                                                 {mapUrl ? (
                                                     <a
                                                         href={mapUrl}
@@ -599,8 +633,9 @@ function TrackComplaint() {
                                                     </div>
 
                                                     {TRACKING_STEPS.map((step, idx) => {
-                                                        const isCompleted = idx < currentStep;
-                                                        const isActive = idx === currentStep;
+                                                        const isResolved = issue.status === "Resolved";
+                                                        const isCompleted = isResolved ? idx <= currentStep : idx < currentStep;
+                                                        const isActive = !isResolved && idx === currentStep;
 
                                                         return (
                                                             <div
@@ -849,7 +884,7 @@ function TrackComplaint() {
                                             color: "#f1f5f9",
                                             fontSize: "13.5px",
                                             fontFamily: "inherit",
-                                            resize: "vertical",
+                                            resize: "none",
                                             boxSizing: "border-box",
                                         }}
                                     />

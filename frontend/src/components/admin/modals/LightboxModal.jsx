@@ -43,9 +43,18 @@ export default function LightboxModal({ lightboxImage, onClose }) {
         >
           ✕
         </button>
-        <img src={lightboxImage.url} alt={lightboxImage.title || "Proof preview"} />
+        <img
+          src={typeof lightboxImage === "string" ? lightboxImage : lightboxImage?.url}
+          alt={(typeof lightboxImage === "object" ? lightboxImage?.title : "Proof preview") || "Proof preview"}
+        />
         <div className="image-lightbox-caption">
-          {lightboxImage.title} {lightboxImage.type ? `• ${lightboxImage.type}` : ""}
+          {typeof lightboxImage === "object" ? (
+            <>
+              {lightboxImage.title} {lightboxImage.type ? `• ${lightboxImage.type}` : ""}
+            </>
+          ) : (
+            "Photo Preview"
+          )}
         </div>
       </div>
     </div>,

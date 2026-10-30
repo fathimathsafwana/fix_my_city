@@ -8,7 +8,6 @@ import { getAuthHeaders } from "../utils/auth";
 function ReportIssue() {
   const { showToast } = useToast();
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [photo, setPhoto] = useState(null);
 
@@ -89,7 +88,7 @@ function ReportIssue() {
       const formData = new FormData();
 
       formData.append("title", title);
-      formData.append("category", category || "General");
+      formData.append("category", "General");
       formData.append("description", description);
       formData.append("latitude", location.latitude);
       formData.append("longitude", location.longitude);
@@ -110,7 +109,8 @@ function ReportIssue() {
 
       if (response.ok) {
         console.log("Backend response:", data);
-        const newId = data.issue?._id || (data._id ? data._id : "");
+        const rawId = data.trackingId || data.issue?.trackingId || data.issue?._id || data._id || "";
+        const newId = String(rawId).slice(0, 10);
         setTrackingId(newId);
         setSubmitted(true);
         showToast("Civic issue submitted successfully!", "success");
@@ -147,25 +147,6 @@ function ReportIssue() {
               value={title}
               onChange={(event) => setTitle(event.target.value)}
             />
-          </div>
-
-          {/* Issue Category */}
-          <div className="form-group">
-            <label>Issue Category</label>
-            <select
-              value={category}
-              onChange={(event) => setCategory(event.target.value)}
-            >
-              <option value="">Select a category</option>
-              <option value="Street Light">Street Light</option>
-              <option value="Road / Pothole">Road / Pothole</option>
-              <option value="Garbage / Waste">Garbage / Waste</option>
-              <option value="Water Supply">Water Supply</option>
-              <option value="Drainage">Drainage</option>
-              <option value="Public Safety">Public Safety</option>
-              <option value="Electricity">Electricity</option>
-              <option value="Other">Other</option>
-            </select>
           </div>
 
           {/* Description */}
@@ -338,7 +319,6 @@ function ReportIssue() {
                 className="btn-report-another"
                 onClick={() => {
                   setTitle("");
-                  setCategory("");
                   setDescription("");
                   setPhoto(null);
                   setLocation(null);

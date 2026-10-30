@@ -86,6 +86,30 @@ mongoose.connect(process.env.MONGODB_URI)
 
 
 
+const SPECIAL_CHAR_REGEX = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/;
+
+function validateStrongPassword(password) {
+  if (!password || typeof password !== "string") {
+    return { isValid: false, message: "Password is required." };
+  }
+  if (password.length < 8) {
+    return { isValid: false, message: "Password must be at least 8 characters long." };
+  }
+  if (!/[A-Z]/.test(password)) {
+    return { isValid: false, message: "Password must contain at least one uppercase letter (A-Z)." };
+  }
+  if (!/[a-z]/.test(password)) {
+    return { isValid: false, message: "Password must contain at least one lowercase letter (a-z)." };
+  }
+  if (!/\d/.test(password)) {
+    return { isValid: false, message: "Password must contain at least one number (0-9)." };
+  }
+  if (!SPECIAL_CHAR_REGEX.test(password)) {
+    return { isValid: false, message: "Password must contain at least one special character (e.g. @, #, $, %, !, &, *)." };
+  }
+  return { isValid: true };
+}
+
 app.get("/", (req, res) => {
   res.send("Smart Civic Issue Reporting System Backend is running!");
 });
@@ -93,17 +117,43 @@ app.post("/api/register", async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    const existingUser = await User.findOne({ email });
+    if (!name || !name.trim()) {
+      return res.status(400).json({
+        message: "Full name is required.",
+      });
+    }
+
+    if (!email || !email.trim()) {
+      return res.status(400).json({
+        message: "Email address is required.",
+      });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = name.trim();
+
+    // Validate strong password
+    const passwordCheck = validateStrongPassword(password);
+    if (!passwordCheck.isValid) {
+      return res.status(400).json({
+        message: passwordCheck.message,
+      });
+    }
+
+    // Check for existing user (case-insensitive)
+    const existingUser = await User.findOne({
+      email: { $regex: new RegExp("^" + cleanEmail.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + "$", "i") },
+    });
 
     if (existingUser) {
       return res.status(400).json({
-        message: "User already exists.",
+        message: "An account with this email already exists. Please login instead.",
       });
     }
 
     const user = new User({
-      name,
-      email,
+      name: cleanName,
+      email: cleanEmail,
       password,
       role: "user",
     });
@@ -117,8 +167,14 @@ app.post("/api/register", async (req, res) => {
   } catch (error) {
     console.error("Error registering user:", error);
 
+    if (error.code === 11000) {
+      return res.status(400).json({
+        message: "An account with this email already exists. Please login instead.",
+      });
+    }
+
     res.status(500).json({
-      message: "Failed to register user.",
+      message: error.message || "Failed to register user.",
       error: error.message,
     });
   }
@@ -218,15 +274,33 @@ app.post("/api/issues", upload.single("photo"), async (req, res) => {
     }
 
     let finalCategory = category && category.trim() ? category.trim() : "";
-    if (!finalCategory || finalCategory === "General") {
-      const t = (title || "").toLowerCase();
-      if (t.includes("light") || t.includes("lamp") || t.includes("electric")) finalCategory = "Street Light";
-      else if (t.includes("pothole") || t.includes("road") || t.includes("tar")) finalCategory = "Road / Pothole";
-      else if (t.includes("garbage") || t.includes("waste") || t.includes("trash")) finalCategory = "Garbage / Waste";
-      else if (t.includes("water") || t.includes("leak") || t.includes("pipe")) finalCategory = "Water Supply";
-      else if (t.includes("drain") || t.includes("sewer") || t.includes("flood")) finalCategory = "Drainage";
-      else if (t.includes("safety") || t.includes("danger")) finalCategory = "Public Safety";
-      else finalCategory = "General";
+    const textToClassify = `${title || ""} ${description || ""} ${finalCategory}`.toLowerCase();
+
+    let assignedDeptId = department && mongoose.Types.ObjectId.isValid(department) ? department : null;
+
+    if (!assignedDeptId) {
+      if (textToClassify.includes("garbage") || textToClassify.includes("waste") || textToClassify.includes("trash") || textToClassify.includes("dump") || textToClassify.includes("sanitat") || textToClassify.includes("hygiene")) {
+        finalCategory = "Sanitation & Waste Management";
+        const dept = await Department.findOne({ name: "Sanitation & Waste Management" });
+        if (dept) assignedDeptId = dept._id;
+      } else if (textToClassify.includes("pothole") || textToClassify.includes("road") || textToClassify.includes("tar") || textToClassify.includes("street") || textToClassify.includes("asphalt") || textToClassify.includes("footpath")) {
+        finalCategory = "Roads & Infrastructure";
+        const dept = await Department.findOne({ name: "Roads & Infrastructure" });
+        if (dept) assignedDeptId = dept._id;
+      } else if (textToClassify.includes("water") || textToClassify.includes("leak") || textToClassify.includes("pipe") || textToClassify.includes("drain") || textToClassify.includes("sewer") || textToClassify.includes("flood")) {
+        finalCategory = "Water Supply & Drainage";
+        const dept = await Department.findOne({ name: "Water Supply & Drainage" });
+        if (dept) assignedDeptId = dept._id;
+      } else {
+        finalCategory = "Sanitation & Waste Management";
+        const dept = await Department.findOne({ name: "Sanitation & Waste Management" });
+        if (dept) assignedDeptId = dept._id;
+      }
+    } else {
+      const dept = await Department.findById(assignedDeptId);
+      if (dept && dept.name) {
+        finalCategory = dept.name;
+      }
     }
 
     const issueData = {
@@ -237,11 +311,14 @@ app.post("/api/issues", upload.single("photo"), async (req, res) => {
       longitude: longitude ? Number(longitude) : 0,
       photo: photoUrl,
       status: "Pending",
-      department: department && mongoose.Types.ObjectId.isValid(department) ? department : null,
+      department: assignedDeptId,
       user: userId && mongoose.Types.ObjectId.isValid(userId) ? userId : null,
     };
 
     const issue = new Issue(issueData);
+    if (!issue.trackingId && issue._id) {
+      issue.trackingId = issue._id.toString().slice(0, 10);
+    }
     const savedIssue = await issue.save();
 
     console.log("New civic issue saved:", savedIssue);
@@ -249,6 +326,7 @@ app.post("/api/issues", upload.single("photo"), async (req, res) => {
     res.status(201).json({
       message: "Civic issue saved successfully!",
       issue: savedIssue,
+      trackingId: savedIssue.trackingId || savedIssue._id.toString().slice(0, 10),
     });
   } catch (error) {
     console.error("Error saving issue:", error);
@@ -412,6 +490,12 @@ app.put("/api/issues/:id", async (req, res) => {
         rawDept && mongoose.Types.ObjectId.isValid(rawDept)
           ? rawDept.toString()
           : null;
+      if (updateFields.department) {
+        const d = await Department.findById(updateFields.department);
+        if (d && d.name) {
+          updateFields.category = d.name;
+        }
+      }
     }
     if (priority !== undefined) updateFields.priority = priority;
 
@@ -469,40 +553,76 @@ app.post("/api/departments", async (req, res) => {
   try {
     const { name, description, email, password } = req.body;
 
-    if (!name || !description) {
+    if (!name || !name.trim() || !description || !description.trim()) {
       return res.status(400).json({
         message: "Department name and description are required.",
       });
     }
 
-    // Check if email already exists in User collection
-    if (email) {
-      const existingUser = await User.findOne({ email: email.trim().toLowerCase() });
-      if (existingUser) {
+    const cleanName = name.trim();
+    const cleanEmail = email ? email.trim().toLowerCase() : "";
+
+    // 1. Validate password first if email and password are provided
+    if (cleanEmail && password) {
+      const pwdCheck = validateStrongPassword(password.trim());
+      if (!pwdCheck.isValid) {
         return res.status(400).json({
-          message: `A user account with email "${email}" already exists.`,
+          message: "Department password error: " + pwdCheck.message,
         });
       }
     }
 
-    const department = new Department({
-      name: name.trim(),
-      description: description.trim(),
-      email: email ? email.trim().toLowerCase() : "",
+    // 2. Check if email already belongs to a citizen or admin
+    let existingUser = null;
+    if (cleanEmail) {
+      existingUser = await User.findOne({
+        email: { $regex: new RegExp("^" + cleanEmail.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + "$", "i") },
+      });
+      if (existingUser && existingUser.role !== "department") {
+        return res.status(400).json({
+          message: `An account with email "${email}" already exists as a ${existingUser.role}. Please use another official email.`,
+        });
+      }
+    }
+
+    // 3. Check if a department with this name already exists (case-insensitive)
+    const existingDept = await Department.findOne({
+      name: { $regex: new RegExp("^" + cleanName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + "$", "i") },
     });
 
-    const savedDepartment = await department.save();
-
-    // If email and password provided, automatically create official department officer login user
-    if (email && password) {
-      const officerUser = new User({
-        name: `${name.trim()} Officer`,
-        email: email.trim().toLowerCase(),
-        password: password.trim(),
-        role: "department",
-        department: savedDepartment._id,
+    let savedDepartment;
+    if (existingDept) {
+      existingDept.name = cleanName;
+      existingDept.description = description.trim();
+      if (cleanEmail) existingDept.email = cleanEmail;
+      savedDepartment = await existingDept.save();
+    } else {
+      const department = new Department({
+        name: cleanName,
+        description: description.trim(),
+        email: cleanEmail,
       });
-      await officerUser.save();
+      savedDepartment = await department.save();
+    }
+
+    // 4. Create or update official department officer login user
+    if (cleanEmail && password) {
+      if (existingUser) {
+        existingUser.name = `${cleanName} Officer`;
+        existingUser.role = "department";
+        existingUser.password = password.trim();
+        existingUser.department = savedDepartment._id;
+        await existingUser.save();
+      } else {
+        const officerUser = new User({
+          name: `${cleanName} Officer`,
+          email: cleanEmail,
+          password: password.trim(),
+          role: "department",
+          department: savedDepartment._id,
+        });
+        await officerUser.save();
+      }
     }
 
     res.status(201).json({
@@ -513,7 +633,7 @@ app.post("/api/departments", async (req, res) => {
     console.error("Error creating department:", error);
 
     res.status(500).json({
-      message: "Failed to create department.",
+      message: "Failed to create department: " + (error.message || "Unknown error"),
       error: error.message,
     });
   }
@@ -551,10 +671,19 @@ app.put("/api/departments/:id", async (req, res) => {
 
     // If email or password provided, update the primary department staff account if exists
     if (email || password) {
+      if (password && password.trim()) {
+        const pwdCheck = validateStrongPassword(password.trim());
+        if (!pwdCheck.isValid) {
+          return res.status(400).json({
+            message: "Department password error: " + pwdCheck.message,
+          });
+        }
+      }
+
       const officer = await User.findOne({ department: department._id, role: "department" });
       if (officer) {
         if (email) officer.email = email.trim().toLowerCase();
-        if (password) officer.password = password.trim();
+        if (password && password.trim()) officer.password = password.trim();
         await officer.save();
       } else if (email && password) {
         const officerUser = new User({
@@ -592,7 +721,13 @@ app.delete("/api/departments/:id", async (req, res) => {
 
     await Department.findByIdAndDelete(id);
 
-    // Safely unassign department from issues and users
+    // Delete dedicated department officer accounts associated with this department
+    await User.deleteMany({ department: id, role: "department" });
+    if (department.email) {
+      await User.deleteMany({ email: department.email.trim().toLowerCase(), role: "department" });
+    }
+
+    // Safely unassign department from issues and any other users
     await Issue.updateMany({ department: id }, { $set: { department: null } });
     await User.updateMany({ department: id }, { $set: { department: null } });
 
@@ -845,7 +980,17 @@ app.post("/api/users", async (req, res) => {
       });
     }
 
-    const existing = await User.findOne({ email });
+    const pwdCheck = validateStrongPassword(password);
+    if (!pwdCheck.isValid) {
+      return res.status(400).json({
+        message: pwdCheck.message,
+      });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const existing = await User.findOne({
+      email: { $regex: new RegExp("^" + cleanEmail.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + "$", "i") },
+    });
     if (existing) {
       return res.status(400).json({
         message: "A user with this email already exists.",
@@ -853,8 +998,8 @@ app.post("/api/users", async (req, res) => {
     }
 
     const newUser = new User({
-      name,
-      email,
+      name: name.trim(),
+      email: cleanEmail,
       password,
       role: role || "user",
       department: role === "department" ? (department || null) : null,
@@ -869,8 +1014,13 @@ app.post("/api/users", async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating user:", error);
+    if (error.code === 11000) {
+      return res.status(400).json({
+        message: "A user with this email already exists.",
+      });
+    }
     res.status(500).json({
-      message: "Failed to create user.",
+      message: error.message || "Failed to create user.",
       error: error.message,
     });
   }
@@ -882,8 +1032,16 @@ app.put("/api/users/:id", async (req, res) => {
     const { name, role, department, password } = req.body;
     const updateData = {};
 
-    if (name) updateData.name = name;
-    if (password) updateData.password = password;
+    if (name) updateData.name = name.trim();
+    if (password) {
+      const pwdCheck = validateStrongPassword(password);
+      if (!pwdCheck.isValid) {
+        return res.status(400).json({
+          message: pwdCheck.message,
+        });
+      }
+      updateData.password = password;
+    }
     if (role) {
       updateData.role = role;
       if (role === "department") {

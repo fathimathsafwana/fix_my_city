@@ -4,6 +4,7 @@ import Navbar from "../components/Navbar";
 import { useToast } from "../context/useToast";
 import { API_BASE_URL } from "../config";
 import { getCurrentUser } from "../utils/auth";
+import { checkPasswordStrength } from "../utils/validation";
 
 function CitizenProfile() {
   const { showToast } = useToast();
@@ -13,6 +14,9 @@ function CitizenProfile() {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [confirmTouched, setConfirmTouched] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -53,9 +57,20 @@ function CitizenProfile() {
       return;
     }
 
-    if (password && password !== confirmPassword) {
-      showToast("Passwords do not match.", "error");
-      return;
+    if (password) {
+      const pwdCheck = checkPasswordStrength(password);
+      if (!pwdCheck.isValid) {
+        showToast(
+          "Password must be at least 8 characters and include uppercase, lowercase, number, and a special character.",
+          "error"
+        );
+        return;
+      }
+      if (password !== confirmPassword) {
+        setConfirmTouched(true);
+        showToast("Passwords do not match.", "error");
+        return;
+      }
     }
 
     setSaving(true);
@@ -164,27 +179,95 @@ function CitizenProfile() {
                 {/* New Password */}
                 <div className="profile-form-group">
                   <label>New Password</label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Leave blank to keep current password"
-                    autoComplete="new-password"
-                  />
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Leave blank to keep current password"
+                      autoComplete="new-password"
+                      style={{ width: "100%", paddingRight: "45px" }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{
+                        position: "absolute",
+                        right: "10px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        border: "none",
+                        background: "none",
+                        cursor: "pointer",
+                        fontSize: "18px",
+                        zIndex: 2,
+                      }}
+                      title={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? "🙈" : "👁️"}
+                    </button>
+                  </div>
+                  {password && !checkPasswordStrength(password).isValid && (
+                    <div className="field-inline-error">
+                      <span className="field-inline-error-icon">⚠️</span>
+                      <span>
+                        {checkPasswordStrength(password).errors.length === 1
+                          ? `${checkPasswordStrength(password).errors[0]}.`
+                          : "Password must be at least 8 characters and include uppercase, lowercase, number, and a special character."}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Confirm Password */}
                 {password && (
                   <div className="profile-form-group">
                     <label>Confirm New Password</label>
-                    <input
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Re-type new password"
-                      required
-                      autoComplete="new-password"
-                    />
+                    <div style={{ position: "relative" }}>
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(e) => {
+                          setConfirmPassword(e.target.value);
+                          setConfirmTouched(false);
+                        }}
+                        onBlur={() => {
+                          if (confirmPassword.length > 0) {
+                            setConfirmTouched(true);
+                          }
+                        }}
+                        placeholder="Re-type new password"
+                        required
+                        autoComplete="new-password"
+                        style={{ width: "100%", paddingRight: "45px" }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        style={{
+                          position: "absolute",
+                          right: "10px",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          border: "none",
+                          background: "none",
+                          cursor: "pointer",
+                          fontSize: "18px",
+                          zIndex: 2,
+                        }}
+                        title={showConfirmPassword ? "Hide password" : "Show password"}
+                      >
+                        {showConfirmPassword ? "🙈" : "👁️"}
+                      </button>
+                    </div>
+                    {confirmPassword &&
+                      password !== confirmPassword &&
+                      (confirmTouched || confirmPassword.length >= password.length) && (
+                        <div className="field-inline-error">
+                          <span className="field-inline-error-icon">⚠️</span>
+                          <span>Passwords do not match.</span>
+                        </div>
+                    )}
                   </div>
                 )}
 

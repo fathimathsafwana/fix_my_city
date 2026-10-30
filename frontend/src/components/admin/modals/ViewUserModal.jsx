@@ -78,11 +78,33 @@ export default function ViewUserModal({
                 className="btn-modal-cancel"
                 onClick={() => onToggleBlock(user)}
                 style={{
-                  color: user.isBlocked ? "#4ade80" : "#f87171",
-                  borderColor: user.isBlocked ? "rgba(34, 197, 94, 0.4)" : "rgba(239, 68, 68, 0.4)",
+                  color: user.isBlocked ? "#f87171" : "#4ade80",
+                  borderColor: user.isBlocked ? "rgba(239, 68, 68, 0.4)" : "rgba(34, 197, 94, 0.4)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
                 }}
               >
-                {user.isBlocked ? "🔓 Unblock Citizen" : "🚫 Block Citizen"}
+                {user.isBlocked ? (
+                  <>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="8.5" cy="7" r="4"></circle>
+                      <line x1="17" y1="9" x2="23" y2="15"></line>
+                      <line x1="23" y1="9" x2="17" y2="15"></line>
+                    </svg>
+                    Unblock Citizen
+                  </>
+                ) : (
+                  <>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="8.5" cy="7" r="4"></circle>
+                      <polyline points="17 11 19 13 23 9"></polyline>
+                    </svg>
+                    Block Citizen
+                  </>
+                )}
               </button>
               <button
                 type="button"

@@ -72,7 +72,7 @@ export default function ViewIssueModal({
                 COMPLAINT ID
               </span>
               <span style={{ fontFamily: "monospace", color: "#38bdf8", fontWeight: "700", fontSize: "14px" }}>
-                #{issue._id}
+                #{(issue.trackingId || String(issue._id)).slice(0, 10)}
               </span>
             </div>
 

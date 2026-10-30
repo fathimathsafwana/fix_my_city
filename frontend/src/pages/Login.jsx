@@ -107,6 +107,7 @@ function Login() {
                   background: "none",
                   cursor: "pointer",
                   fontSize: "18px",
+                  zIndex: 2,
                 }}
               >
                 {showPassword ? "🙈" : "👁️"}
@@ -121,14 +122,23 @@ function Login() {
         </form>
 
         {message && (
-          <p>
-            {message}
-          </p>
+          <div
+            className={`login-feedback ${
+              message.toLowerCase().includes("successful") ? "success" : "error"
+            }`}
+          >
+            <div>
+              <strong style={{ marginRight: "6px" }}>
+                {message.toLowerCase().includes("successful") ? "✅" : "⚠️"}
+              </strong>
+              <span>{message}</span>
+            </div>
+          </div>
         )}
 
         <p className="register-text">
           Don't have an account?{" "}
-          <Link to="/register">Register</Link>
+          <Link to="/register">Signup</Link>
         </p>
 
       </div>
